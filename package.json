@@ -6,13 +6,13 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "node scripts/prisma-generate.mjs && next build",
     "start": "prisma migrate deploy && next start",
     "lint": "eslint",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma migrate reset --force",
-    "postinstall": "npx prisma generate"
+    "postinstall": "node scripts/prisma-generate.mjs"
   },
   "engines": {
     "node": ">=20"
