@@ -19,6 +19,7 @@ import {
   Gift,
   Heart,
   Bell,
+  PenLine,
 } from "lucide-react";
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -34,6 +35,7 @@ const allNavItems = [
   { href: "/dashboard/professores", label: "Professores", icon: UserCog, roles: ["admin", "director"] },
   { href: "/dashboard/notas", label: "Notas", icon: BookOpen, roles: ["admin", "director", "teacher"] },
   { href: "/dashboard/frequencia", label: "Frequência", icon: ClipboardList, roles: ["admin", "director", "teacher"] },
+  { href: "/dashboard/exercicios", label: "Exercícios", icon: PenLine, roles: ["admin", "director", "teacher", "student"] },
   { href: "/dashboard/gamificacao", label: "Gamificação", icon: Target, roles: ["admin", "director", "teacher"] },
   { href: "/dashboard/loja", label: "Loja de Recompensas", icon: Gift, roles: ["admin", "director", "student"] },
   { href: "/dashboard/responsaveis", label: "Responsáveis", icon: Heart, roles: ["admin", "director"] },

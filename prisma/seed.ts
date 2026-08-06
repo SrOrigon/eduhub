@@ -6,6 +6,10 @@ const prisma = new PrismaClient();
 
 async function main() {
   await prisma.notification.deleteMany();
+  await prisma.exerciseAnswer.deleteMany();
+  await prisma.exerciseSubmission.deleteMany();
+  await prisma.exerciseQuestion.deleteMany();
+  await prisma.exercise.deleteMany();
   await prisma.rewardRedemption.deleteMany();
   await prisma.parentStudent.deleteMany();
   await prisma.xpTransaction.deleteMany();
@@ -226,6 +230,42 @@ async function main() {
         isRead: false,
       },
     ],
+  });
+
+  await prisma.exercise.create({
+    data: {
+      schoolId: school.id,
+      classId: class8A.id,
+      teacherId: teacher.id,
+      title: "Exercício de Frações — Casa",
+      description: "Resolva as questões abaixo. Questões de texto serão corrigidas pelo professor.",
+      kind: "homework",
+      maxPoints: 10,
+      xpReward: 80,
+      coinReward: 25,
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      questions: {
+        create: [
+          {
+            prompt: "Quanto é 1/2 + 1/4?",
+            type: "choice",
+            points: 5,
+            sortOrder: 0,
+            options: JSON.stringify([
+              { id: "a", text: "3/4", isCorrect: true },
+              { id: "b", text: "2/4", isCorrect: false },
+              { id: "c", text: "1/3", isCorrect: false },
+            ]),
+          },
+          {
+            prompt: "Explique com suas palavras o que é uma fração equivalente.",
+            type: "text",
+            points: 5,
+            sortOrder: 1,
+          },
+        ],
+      },
+    },
   });
 
   console.log("Seed concluído!");

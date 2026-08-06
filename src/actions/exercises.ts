@@ -1,0 +1,385 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { requireSession } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+import { awardXp } from "@/lib/gamification";
+import { notifyStudent, notifyStudentParents } from "@/lib/notifications";
+import { parseOptions, type ChoiceOption, type ExerciseKind, type QuestionType } from "@/lib/exercises";
+
+function revalidateExercises() {
+  ["/dashboard/exercicios", "/dashboard/aluno", "/dashboard/professor"].forEach((p) =>
+    revalidatePath(p)
+  );
+}
+
+type QuestionInput = {
+  prompt: string;
+  type: QuestionType;
+  points: number;
+  options?: ChoiceOption[];
+};
+
+function parseQuestionsJson(raw: string): QuestionInput[] {
+  try {
+    const parsed = JSON.parse(raw) as QuestionInput[];
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      throw new Error("Adicione pelo menos uma questão.");
+    }
+    for (const q of parsed) {
+      if (!q.prompt?.trim()) throw new Error("Todas as questões precisam de enunciado.");
+    }
+    return parsed;
+  } catch {
+    throw new Error("Formato de questões inválido.");
+  }
+}
+
+async function assertTeacherCanManageClass(userId: string, role: string, classId: string | null) {
+  if (!classId) return;
+  if (role === "admin" || role === "director") return;
+  const turma = await prisma.classGroup.findFirst({
+    where: { id: classId, teacherId: userId },
+  });
+  if (!turma) throw new Error("FORBIDDEN");
+}
+
+export async function createExerciseAction(formData: FormData) {
+  const user = await requireSession(["admin", "director", "teacher"]);
+  if (!user.schoolId) return { error: "Escola não configurada." };
+
+  const title = String(formData.get("title") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim() || null;
+  const kind = String(formData.get("kind") ?? "homework") as ExerciseKind;
+  const classId = String(formData.get("classId") ?? "") || null;
+  const maxPoints = parseFloat(String(formData.get("maxPoints") ?? "10"));
+  const xpReward = parseInt(String(formData.get("xpReward") ?? "0"), 10);
+  const coinReward = parseInt(String(formData.get("coinReward") ?? "0"), 10);
+  const dueDateRaw = String(formData.get("dueDate") ?? "");
+  const questionsJson = String(formData.get("questionsJson") ?? "");
+
+  if (!title) return { error: "Título é obrigatório." };
+  if (!classId) return { error: "Selecione uma turma." };
+  if (isNaN(maxPoints) || maxPoints <= 0) return { error: "Pontuação máxima inválida." };
+
+  try {
+    await assertTeacherCanManageClass(user.id, user.role, classId);
+    const questions = parseQuestionsJson(questionsJson);
+
+    const exercise = await prisma.exercise.create({
+      data: {
+        schoolId: user.schoolId,
+        classId,
+        teacherId: user.id,
+        title,
+        description,
+        kind,
+        maxPoints,
+        xpReward: Math.max(0, xpReward),
+        coinReward: Math.max(0, coinReward),
+        dueDate: dueDateRaw ? new Date(dueDateRaw) : null,
+        questions: {
+          create: questions.map((q, i) => ({
+            prompt: q.prompt,
+            type: q.type,
+            points: q.points,
+            sortOrder: i,
+            options: q.type === "choice" ? JSON.stringify(q.options ?? []) : null,
+          })),
+        },
+      },
+      include: { classGroup: { select: { name: true } } },
+    });
+
+    const students = await prisma.student.findMany({
+      where: { classId },
+      select: { id: true, userId: true },
+    });
+
+    for (const s of students) {
+      await notifyStudent(
+        s.id,
+        kind === "exam" ? "Nova prova disponível" : "Novo exercício disponível",
+        `${title} · ${exercise.classGroup?.name ?? "Turma"}`,
+        `/dashboard/exercicios/${exercise.id}`
+      );
+    }
+
+    revalidateExercises();
+    return { success: true, id: exercise.id };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Erro ao criar exercício." };
+  }
+}
+
+export async function updateExerciseAction(formData: FormData) {
+  const user = await requireSession(["admin", "director", "teacher"]);
+  const id = String(formData.get("id") ?? "");
+  const exercise = await prisma.exercise.findFirst({
+    where: { id, schoolId: user.schoolId ?? undefined },
+  });
+  if (!exercise) return { error: "Exercício não encontrado." };
+  if (user.role === "teacher" && exercise.teacherId !== user.id) {
+    return { error: "Sem permissão para editar." };
+  }
+
+  const title = String(formData.get("title") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim() || null;
+  const kind = String(formData.get("kind") ?? exercise.kind) as ExerciseKind;
+  const maxPoints = parseFloat(String(formData.get("maxPoints") ?? String(exercise.maxPoints)));
+  const xpReward = parseInt(String(formData.get("xpReward") ?? String(exercise.xpReward)), 10);
+  const coinReward = parseInt(String(formData.get("coinReward") ?? String(exercise.coinReward)), 10);
+  const dueDateRaw = String(formData.get("dueDate") ?? "");
+  const isActive = formData.get("isActive") !== "false";
+  const questionsJson = String(formData.get("questionsJson") ?? "");
+
+  if (!title) return { error: "Título é obrigatório." };
+
+  try {
+    const questions = questionsJson ? parseQuestionsJson(questionsJson) : null;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.exercise.update({
+        where: { id },
+        data: {
+          title,
+          description,
+          kind,
+          maxPoints,
+          xpReward: Math.max(0, xpReward),
+          coinReward: Math.max(0, coinReward),
+          dueDate: dueDateRaw ? new Date(dueDateRaw) : null,
+          isActive,
+        },
+      });
+
+      if (questions) {
+        await tx.exerciseQuestion.deleteMany({ where: { exerciseId: id } });
+        await tx.exerciseQuestion.createMany({
+          data: questions.map((q, i) => ({
+            exerciseId: id,
+            prompt: q.prompt,
+            type: q.type,
+            points: q.points,
+            sortOrder: i,
+            options: q.type === "choice" ? JSON.stringify(q.options ?? []) : null,
+          })),
+        });
+      }
+    });
+
+    revalidateExercises();
+    revalidatePath(`/dashboard/exercicios/${id}`);
+    return { success: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Erro ao atualizar." };
+  }
+}
+
+export async function submitExerciseAction(formData: FormData) {
+  const user = await requireSession(["student"]);
+  const exerciseId = String(formData.get("exerciseId") ?? "");
+  const answersJson = String(formData.get("answersJson") ?? "");
+
+  const student = await prisma.student.findUnique({ where: { userId: user.id } });
+  if (!student) return { error: "Perfil de aluno não encontrado." };
+
+  const exercise = await prisma.exercise.findFirst({
+    where: {
+      id: exerciseId,
+      isActive: true,
+      classId: student.classId ?? undefined,
+    },
+    include: { questions: { orderBy: { sortOrder: "asc" } } },
+  });
+  if (!exercise) return { error: "Exercício não encontrado." };
+
+  if (exercise.dueDate && new Date() > exercise.dueDate) {
+    return { error: "Prazo encerrado para este exercício." };
+  }
+
+  const existing = await prisma.exerciseSubmission.findUnique({
+    where: { exerciseId_studentId: { exerciseId, studentId: student.id } },
+  });
+  if (existing?.status === "graded") {
+    return { error: "Este exercício já foi corrigido." };
+  }
+
+  let answers: Record<string, { textAnswer?: string; selectedOptionId?: string }>;
+  try {
+    answers = JSON.parse(answersJson);
+  } catch {
+    return { error: "Respostas inválidas." };
+  }
+
+  const answerRows = exercise.questions.map((q) => {
+    const a = answers[q.id] ?? {};
+    let isCorrect: boolean | null = null;
+    let pointsAwarded: number | null = null;
+
+    if (q.type === "choice") {
+      const opts = parseOptions(q.options);
+      const correct = opts.find((o) => o.isCorrect);
+      isCorrect = correct ? a.selectedOptionId === correct.id : false;
+      pointsAwarded = isCorrect ? q.points : 0;
+    }
+
+    return {
+      questionId: q.id,
+      textAnswer: a.textAnswer?.trim() || null,
+      selectedOptionId: a.selectedOptionId || null,
+      isCorrect,
+      pointsAwarded,
+    };
+  });
+
+  await prisma.$transaction(async (tx) => {
+    if (existing) {
+      await tx.exerciseAnswer.deleteMany({ where: { submissionId: existing.id } });
+      await tx.exerciseSubmission.update({
+        where: { id: existing.id },
+        data: { status: "submitted", submittedAt: new Date(), score: null, gradedAt: null, gradedById: null },
+      });
+      await tx.exerciseAnswer.createMany({
+        data: answerRows.map((r) => ({ submissionId: existing.id, ...r })),
+      });
+    } else {
+      const sub = await tx.exerciseSubmission.create({
+        data: {
+          exerciseId,
+          studentId: student.id,
+          status: "submitted",
+          maxScore: exercise.questions.reduce((s, q) => s + q.points, 0),
+        },
+      });
+      await tx.exerciseAnswer.createMany({
+        data: answerRows.map((r) => ({ submissionId: sub.id, ...r })),
+      });
+    }
+  });
+
+  revalidateExercises();
+  revalidatePath(`/dashboard/exercicios/${exerciseId}`);
+  return { success: true };
+}
+
+export async function gradeSubmissionAction(formData: FormData) {
+  const user = await requireSession(["admin", "director", "teacher"]);
+  const submissionId = String(formData.get("submissionId") ?? "");
+  const feedback = String(formData.get("feedback") ?? "").trim() || null;
+  const gradesJson = String(formData.get("gradesJson") ?? "");
+
+  const submission = await prisma.exerciseSubmission.findUnique({
+    where: { id: submissionId },
+    include: {
+      exercise: { include: { questions: true } },
+      student: true,
+      answers: true,
+    },
+  });
+  if (!submission || submission.exercise.schoolId !== user.schoolId) {
+    return { error: "Entrega não encontrada." };
+  }
+  if (user.role === "teacher" && submission.exercise.teacherId !== user.id) {
+    return { error: "Sem permissão para corrigir." };
+  }
+
+  let grades: Record<string, { points: number; isCorrect?: boolean }>;
+  try {
+    grades = JSON.parse(gradesJson);
+  } catch {
+    return { error: "Notas inválidas." };
+  }
+
+  let totalScore = 0;
+  const maxScore = submission.exercise.questions.reduce((s, q) => s + q.points, 0);
+
+  await prisma.$transaction(async (tx) => {
+    for (const answer of submission.answers) {
+      const g = grades[answer.questionId];
+      const pts = g ? Math.max(0, Math.min(g.points, submission.exercise.questions.find((q) => q.id === answer.questionId)?.points ?? 0)) : 0;
+      totalScore += pts;
+      await tx.exerciseAnswer.update({
+        where: { id: answer.id },
+        data: {
+          pointsAwarded: pts,
+          isCorrect: g?.isCorrect ?? pts > 0,
+        },
+      });
+    }
+
+    await tx.exerciseSubmission.update({
+      where: { id: submissionId },
+      data: {
+        status: "graded",
+        score: totalScore,
+        maxScore,
+        feedback,
+        gradedAt: new Date(),
+        gradedById: user.id,
+      },
+    });
+
+    const ratio = maxScore > 0 ? totalScore / maxScore : 0;
+    const xp = Math.round(submission.exercise.xpReward * ratio);
+    const coins = Math.round(submission.exercise.coinReward * ratio);
+
+    if (xp > 0 || coins > 0) {
+      await awardXp(
+        submission.studentId,
+        xp,
+        `${submission.exercise.kind === "exam" ? "Prova" : "Exercício"}: ${submission.exercise.title} (${totalScore.toFixed(1)}/${maxScore})`,
+        "manual",
+        coins
+      );
+    }
+
+    await tx.grade.create({
+      data: {
+        studentId: submission.studentId,
+        subject: submission.exercise.kind === "exam" ? "Prova" : "Exercício",
+        value: maxScore > 0 ? (totalScore / maxScore) * 10 : 0,
+        maxValue: 10,
+        period: submission.exercise.title.slice(0, 40),
+        teacherId: user.id,
+      },
+    });
+  });
+
+  await notifyStudent(
+    submission.studentId,
+    "Exercício corrigido",
+    `${submission.exercise.title}: ${totalScore.toFixed(1)}/${maxScore} pts`,
+    `/dashboard/exercicios/${submission.exerciseId}`
+  );
+  await notifyStudentParents(
+    submission.studentId,
+    "Atividade corrigida",
+    `${submission.exercise.title}: ${totalScore.toFixed(1)}/${maxScore} pts`,
+    `/dashboard/responsavel/filho/${submission.studentId}`
+  );
+
+  revalidateExercises();
+  revalidatePath(`/dashboard/exercicios/${submission.exerciseId}`);
+  return { success: true };
+}
+
+export async function toggleExerciseAction(formData: FormData) {
+  const user = await requireSession(["admin", "director", "teacher"]);
+  const id = String(formData.get("id") ?? "");
+  const exercise = await prisma.exercise.findFirst({
+    where: { id, schoolId: user.schoolId ?? undefined },
+  });
+  if (!exercise) return { error: "Não encontrado." };
+  if (user.role === "teacher" && exercise.teacherId !== user.id) {
+    return { error: "Sem permissão." };
+  }
+
+  await prisma.exercise.update({
+    where: { id },
+    data: { isActive: !exercise.isActive },
+  });
+
+  revalidateExercises();
+  return { success: true };
+}

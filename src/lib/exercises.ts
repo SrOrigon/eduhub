@@ -1,0 +1,128 @@
+import { prisma } from "@/lib/db";
+import type { SessionUser } from "@/lib/auth";
+
+export type ExerciseKind = "homework" | "exam";
+export type QuestionType = "choice" | "text";
+
+export interface ChoiceOption {
+  id: string;
+  text: string;
+  isCorrect: boolean;
+}
+
+export function parseOptions(json: string | null): ChoiceOption[] {
+  if (!json) return [];
+  try {
+    return JSON.parse(json) as ChoiceOption[];
+  } catch {
+    return [];
+  }
+}
+
+export async function getTeacherClasses(user: SessionUser) {
+  if (!user.schoolId) return [];
+  if (user.role === "admin" || user.role === "director") {
+    return prisma.classGroup.findMany({
+      where: { schoolId: user.schoolId },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    });
+  }
+  return prisma.classGroup.findMany({
+    where: { schoolId: user.schoolId, teacherId: user.id },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+}
+
+export async function getExercisesForUser(user: SessionUser) {
+  if (!user.schoolId) return [];
+
+  if (user.role === "student") {
+    const student = await prisma.student.findUnique({ where: { userId: user.id } });
+    if (!student?.classId) return [];
+    return prisma.exercise.findMany({
+      where: {
+        schoolId: user.schoolId,
+        isActive: true,
+        classId: student.classId,
+      },
+      include: {
+        classGroup: { select: { name: true } },
+        teacher: { select: { fullName: true } },
+        questions: { orderBy: { sortOrder: "asc" } },
+        submissions: { where: { studentId: student.id } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  if (user.role === "parent") {
+    return [];
+  }
+
+  const classFilter =
+    user.role === "teacher"
+      ? { OR: [{ teacherId: user.id }, { classGroup: { teacherId: user.id } }] }
+      : {};
+
+  return prisma.exercise.findMany({
+    where: { schoolId: user.schoolId, ...classFilter },
+    include: {
+      classGroup: { select: { name: true } },
+      teacher: { select: { fullName: true } },
+      questions: true,
+      submissions: {
+        include: {
+          student: { include: { user: { select: { fullName: true } } } },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+export async function getExerciseById(id: string, user: SessionUser) {
+  const exercise = await prisma.exercise.findFirst({
+    where: { id, schoolId: user.schoolId ?? undefined },
+    include: {
+      classGroup: { select: { name: true, id: true } },
+      teacher: { select: { fullName: true, id: true } },
+      questions: { orderBy: { sortOrder: "asc" } },
+      submissions: {
+        include: {
+          student: { include: { user: { select: { fullName: true, email: true } } } },
+          answers: true,
+        },
+        orderBy: { submittedAt: "desc" },
+      },
+    },
+  });
+  if (!exercise) return null;
+
+  if (user.role === "student") {
+    const student = await prisma.student.findUnique({ where: { userId: user.id } });
+    if (!student || exercise.classId !== student.classId) return null;
+  } else if (user.role === "teacher") {
+    if (exercise.teacherId !== user.id) {
+      const teaches = exercise.classId
+        ? await prisma.classGroup.findFirst({
+            where: { id: exercise.classId, teacherId: user.id },
+          })
+        : null;
+      if (!teaches) return null;
+    }
+  }
+
+  return exercise;
+}
+
+export const EXERCISE_KIND_LABELS: Record<ExerciseKind, string> = {
+  homework: "Exercício de casa",
+  exam: "Prova",
+};
+
+export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
+  choice: "Múltipla escolha",
+  text: "Resposta digitada",
+};
