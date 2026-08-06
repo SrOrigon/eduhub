@@ -1,0 +1,409 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import bcrypt from "bcryptjs";
+import { requireSession } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+import { processGradeXp, processAttendanceXp, completeMission } from "@/lib/gamification";
+import { notifyStudent, notifyStudentParents } from "@/lib/notifications";
+import { SUBJECTS, PERIODS } from "@/lib/constants";
+
+function revalidateAll() {
+  [
+    "/dashboard",
+    "/dashboard/alunos",
+    "/dashboard/turmas",
+    "/dashboard/notas",
+    "/dashboard/frequencia",
+    "/dashboard/gamificacao",
+    "/dashboard/relatorios",
+    "/dashboard/notificacoes",
+    "/dashboard/aluno",
+  ].forEach((p) => revalidatePath(p));
+}
+
+export async function createStudentAction(formData: FormData) {
+  const user = await requireSession(["admin", "director", "teacher"]);
+  if (!user.schoolId) return { error: "Escola não configurada." };
+
+  const fullName = String(formData.get("fullName") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const enrollmentCode = String(formData.get("enrollmentCode") ?? "").trim();
+  const classId = String(formData.get("classId") ?? "") || null;
+  const password = String(formData.get("password") ?? "demo123");
+
+  if (!fullName || !email || !enrollmentCode) {
+    return { error: "Nome, e-mail e matrícula são obrigatórios." };
+  }
+
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) return { error: "E-mail já cadastrado." };
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  await prisma.user.create({
+    data: {
+      email,
+      passwordHash,
+      fullName,
+      role: "student",
+      schoolId: user.schoolId,
+      student: {
+        create: { enrollmentCode, classId },
+      },
+    },
+  });
+
+  revalidateAll();
+  return { success: true };
+}
+
+export async function createClassAction(formData: FormData) {
+  const user = await requireSession(["admin", "director"]);
+  if (!user.schoolId) return { error: "Escola não configurada." };
+
+  const name = String(formData.get("name") ?? "").trim();
+  const gradeLevel = String(formData.get("gradeLevel") ?? "").trim();
+  const year = parseInt(String(formData.get("year") ?? "2026"), 10);
+  const teacherId = String(formData.get("teacherId") ?? "") || null;
+
+  if (!name || !gradeLevel) return { error: "Nome e série são obrigatórios." };
+
+  await prisma.classGroup.create({
+    data: { schoolId: user.schoolId, name, gradeLevel, year, teacherId },
+  });
+
+  revalidateAll();
+  return { success: true };
+}
+
+export async function createGradeAction(formData: FormData) {
+  const user = await requireSession(["admin", "director", "teacher"]);
+  if (!user.schoolId) return { error: "Escola não configurada." };
+
+  const studentId = String(formData.get("studentId") ?? "");
+  const subject = String(formData.get("subject") ?? "");
+  const value = parseFloat(String(formData.get("value") ?? "0"));
+  const period = String(formData.get("period") ?? "1º Bimestre");
+
+  if (!studentId || !subject || isNaN(value)) {
+    return { error: "Preencha todos os campos." };
+  }
+  if (value < 0 || value > 10) return { error: "Nota deve ser entre 0 e 10." };
+
+  const student = await prisma.student.findFirst({
+    where: { id: studentId, user: { schoolId: user.schoolId } },
+  });
+  if (!student) return { error: "Aluno não encontrado." };
+
+  await prisma.grade.create({
+    data: {
+      studentId,
+      subject,
+      value,
+      period,
+      teacherId: user.role === "teacher" ? user.id : undefined,
+    },
+  });
+
+  await processGradeXp(studentId, value, subject);
+
+  await notifyStudent(
+    studentId,
+    "Nova nota lançada",
+    `${subject}: ${value.toFixed(1)} (${period})`,
+    "/dashboard/aluno"
+  );
+  await notifyStudentParents(
+    studentId,
+    "Nota do filho(a)",
+    `${subject}: ${value.toFixed(1)} (${period})`,
+    `/dashboard/responsavel/filho/${studentId}`
+  );
+
+  revalidateAll();
+  return { success: true };
+}
+
+export async function recordAttendanceAction(formData: FormData) {
+  const user = await requireSession(["admin", "director", "teacher"]);
+  if (!user.schoolId) return { error: "Escola não configurada." };
+
+  const studentId = String(formData.get("studentId") ?? "");
+  const classId = String(formData.get("classId") ?? "");
+  const status = String(formData.get("status") ?? "present");
+  const dateStr = String(formData.get("date") ?? new Date().toISOString().split("T")[0]);
+  const date = new Date(dateStr);
+  date.setHours(0, 0, 0, 0);
+
+  if (!studentId || !classId) return { error: "Aluno e turma são obrigatórios." };
+
+  const existing = await prisma.attendance.findUnique({
+    where: { studentId_date: { studentId, date } },
+  });
+
+  if (existing) {
+    await prisma.attendance.update({
+      where: { id: existing.id },
+      data: { status },
+    });
+  } else {
+    await prisma.attendance.create({
+      data: { studentId, classId, date, status },
+    });
+    await processAttendanceXp(studentId, status);
+  }
+
+  revalidateAll();
+  return { success: true };
+}
+
+export async function createMissionAction(formData: FormData) {
+  const user = await requireSession(["admin", "director", "teacher"]);
+  if (!user.schoolId) return { error: "Escola não configurada." };
+
+  const title = String(formData.get("title") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const xpReward = parseInt(String(formData.get("xpReward") ?? "100"), 10);
+  const coinReward = parseInt(String(formData.get("coinReward") ?? "30"), 10);
+  const classId = String(formData.get("classId") ?? "") || null;
+  const dueDateStr = String(formData.get("dueDate") ?? "");
+
+  if (!title) return { error: "Título é obrigatório." };
+
+  const mission = await prisma.mission.create({
+    data: {
+      schoolId: user.schoolId,
+      title,
+      description,
+      xpReward,
+      coinReward,
+      classId,
+      dueDate: dueDateStr ? new Date(dueDateStr) : null,
+      isActive: true,
+    },
+  });
+
+  if (classId) {
+    const classStudents = await prisma.student.findMany({
+      where: { classId },
+      select: { id: true },
+    });
+    for (const s of classStudents) {
+      await notifyStudent(
+        s.id,
+        "Nova missão disponível",
+        mission.title,
+        "/dashboard/aluno"
+      );
+    }
+  }
+
+  revalidateAll();
+  return { success: true };
+}
+
+export async function updateMissionAction(formData: FormData) {
+  const user = await requireSession(["admin", "director", "teacher"]);
+  if (!user.schoolId) return { error: "Escola não configurada." };
+
+  const missionId = String(formData.get("missionId") ?? "");
+  const title = String(formData.get("title") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const xpReward = parseInt(String(formData.get("xpReward") ?? "100"), 10);
+  const coinReward = parseInt(String(formData.get("coinReward") ?? "30"), 10);
+  const classId = String(formData.get("classId") ?? "") || null;
+  const dueDateStr = String(formData.get("dueDate") ?? "");
+
+  if (!missionId || !title) return { error: "Dados inválidos." };
+
+  const mission = await prisma.mission.findFirst({
+    where: { id: missionId, schoolId: user.schoolId },
+  });
+  if (!mission) return { error: "Missão não encontrada." };
+
+  await prisma.mission.update({
+    where: { id: missionId },
+    data: {
+      title,
+      description: description || null,
+      xpReward,
+      coinReward,
+      classId,
+      dueDate: dueDateStr ? new Date(dueDateStr) : null,
+    },
+  });
+
+  revalidateAll();
+  return { success: true };
+}
+
+export async function toggleMissionAction(formData: FormData) {
+  const user = await requireSession(["admin", "director", "teacher"]);
+  if (!user.schoolId) return { error: "Escola não configurada." };
+  const missionId = String(formData.get("missionId") ?? "");
+
+  const mission = await prisma.mission.findFirst({
+    where: { id: missionId, schoolId: user.schoolId },
+  });
+  if (!mission) return { error: "Missão não encontrada." };
+
+  await prisma.mission.update({
+    where: { id: missionId },
+    data: { isActive: !mission.isActive },
+  });
+
+  revalidateAll();
+  return { success: true };
+}
+
+export async function completeMissionAction(formData: FormData) {
+  const user = await requireSession(["admin", "director", "teacher"]);
+  const studentId = String(formData.get("studentId") ?? "");
+  const missionId = String(formData.get("missionId") ?? "");
+
+  if (!studentId || !missionId) return { error: "Dados inválidos." };
+
+  const student = await prisma.student.findFirst({
+    where: { id: studentId, user: { schoolId: user.schoolId } },
+  });
+  if (!student) return { error: "Aluno não encontrado." };
+
+  try {
+    const mission = await prisma.mission.findUnique({ where: { id: missionId } });
+    await completeMission(studentId, missionId);
+
+    if (mission) {
+      await notifyStudent(
+        studentId,
+        "Missão concluída!",
+        `Você ganhou ${mission.xpReward} XP e ${mission.coinReward} moedas em "${mission.title}".`,
+        "/dashboard/aluno"
+      );
+      await notifyStudentParents(
+        studentId,
+        "Missão concluída",
+        `Missão "${mission.title}" foi concluída.`,
+        `/dashboard/responsavel/filho/${studentId}`
+      );
+    }
+
+    revalidateAll();
+    return { success: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Erro ao concluir missão." };
+  }
+}
+
+export async function bulkAttendanceAction(formData: FormData) {
+  const user = await requireSession(["admin", "director", "teacher"]);
+  if (!user.schoolId) return { error: "Escola não configurada." };
+
+  const classId = String(formData.get("classId") ?? "");
+  const dateStr = String(formData.get("date") ?? new Date().toISOString().split("T")[0]);
+  const date = new Date(dateStr);
+  date.setHours(0, 0, 0, 0);
+
+  if (!classId) return { error: "Selecione uma turma." };
+
+  const students = await prisma.student.findMany({
+    where: { classId, user: { schoolId: user.schoolId } },
+  });
+
+  if (students.length === 0) return { error: "Nenhum aluno nesta turma." };
+
+  let registered = 0;
+  for (const student of students) {
+    const status = String(formData.get(`status_${student.id}`) ?? "present");
+    const existing = await prisma.attendance.findUnique({
+      where: { studentId_date: { studentId: student.id, date } },
+    });
+
+    if (existing) {
+      await prisma.attendance.update({ where: { id: existing.id }, data: { status } });
+    } else {
+      await prisma.attendance.create({
+        data: { studentId: student.id, classId, date, status },
+      });
+      await processAttendanceXp(student.id, status);
+      registered++;
+    }
+  }
+
+  revalidateAll();
+  return { success: true, message: `Chamada registrada para ${students.length} alunos (${registered} novos).` };
+}
+
+export async function updateStudentAction(formData: FormData) {
+  const user = await requireSession(["admin", "director", "teacher"]);
+  if (!user.schoolId) return { error: "Escola não configurada." };
+
+  const studentId = String(formData.get("studentId") ?? "");
+  const classId = String(formData.get("classId") ?? "") || null;
+
+  const student = await prisma.student.findFirst({
+    where: { id: studentId, user: { schoolId: user.schoolId } },
+  });
+  if (!student) return { error: "Aluno não encontrado." };
+
+  await prisma.student.update({ where: { id: studentId }, data: { classId } });
+  revalidateAll();
+  revalidatePath(`/dashboard/alunos/${studentId}`);
+  return { success: true };
+}
+
+export async function createTeacherAction(formData: FormData) {
+  const user = await requireSession(["admin", "director"]);
+  if (!user.schoolId) return { error: "Escola não configurada." };
+
+  const fullName = String(formData.get("fullName") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "demo123");
+
+  if (!fullName || !email) return { error: "Nome e e-mail são obrigatórios." };
+
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) return { error: "E-mail já cadastrado." };
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  await prisma.user.create({
+    data: { email, passwordHash, fullName, role: "teacher", schoolId: user.schoolId },
+  });
+
+  revalidatePath("/dashboard/professores");
+  return { success: true };
+}
+
+export async function deleteStudentAction(formData: FormData) {
+  const studentId = String(formData.get("studentId") ?? "");
+  const user = await requireSession(["admin", "director"]);
+  if (!user.schoolId) return { error: "Escola não configurada." };
+
+  const student = await prisma.student.findFirst({
+    where: { id: studentId, user: { schoolId: user.schoolId } },
+    include: { user: true },
+  });
+  if (!student) return { error: "Aluno não encontrado." };
+
+  await prisma.user.delete({ where: { id: student.userId } });
+  revalidateAll();
+  return { success: true };
+}
+
+export async function updateSchoolAction(formData: FormData) {
+  const user = await requireSession(["admin", "director"]);
+  if (!user.schoolId) return { error: "Escola não configurada." };
+
+  const name = String(formData.get("name") ?? "").trim();
+  const city = String(formData.get("city") ?? "").trim();
+  const state = String(formData.get("state") ?? "").trim();
+
+  await prisma.school.update({
+    where: { id: user.schoolId },
+    data: { name, city, state },
+  });
+
+  revalidatePath("/dashboard/configuracoes");
+  return { success: true };
+}
+
+export { SUBJECTS, PERIODS };

@@ -1,0 +1,255 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model School {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  city      String?
+  state     String?
+  createdAt DateTime @default(now())
+
+  users       User[]
+  classGroups ClassGroup[]
+  missions    Mission[]
+  badges      Badge[]
+  rewards     Reward[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  role         String   @default("student")
+  avatarUrl    String?
+  schoolId     String?
+  createdAt    DateTime @default(now())
+
+  school         School?      @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  student        Student?
+  taughtClasses  ClassGroup[] @relation("ClassTeacher")
+  gradesGiven    Grade[]          @relation("GradeTeacher")
+  sessions       Session[]
+  parentLinks    ParentStudent[]  @relation("ParentUser")
+  notifications  Notification[]
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  href      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+}
+
+model ClassGroup {
+  id         String   @id @default(cuid())
+  schoolId   String
+  name       String
+  gradeLevel String
+  year       Int      @default(2026)
+  teacherId  String?
+  createdAt  DateTime @default(now())
+
+  school      School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  teacher     User?        @relation("ClassTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
+  students    Student[]
+  attendance  Attendance[]
+  missions    Mission[]
+
+  @@index([schoolId])
+}
+
+model Student {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  enrollmentCode String   @unique
+  birthDate      DateTime?
+  classId        String?
+  xpTotal        Int      @default(0)
+  level          Int      @default(1)
+  coins          Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classGroup      ClassGroup?       @relation(fields: [classId], references: [id], onDelete: SetNull)
+  grades          Grade[]
+  attendance      Attendance[]
+  xpTransactions  XpTransaction[]
+  studentMissions   StudentMission[]
+  studentBadges     StudentBadge[]
+  rewardRedemptions RewardRedemption[]
+  parentLinks       ParentStudent[]
+
+  @@index([classId])
+}
+
+model Grade {
+  id        String   @id @default(cuid())
+  studentId String
+  subject   String
+  value     Float
+  maxValue  Float    @default(10)
+  period    String
+  teacherId String?
+  createdAt DateTime @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher User?   @relation("GradeTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
+
+  @@index([studentId])
+}
+
+model Attendance {
+  id        String           @id @default(cuid())
+  studentId String
+  classId   String
+  date      DateTime
+  status    String   @default("present")
+  createdAt DateTime         @default(now())
+
+  student    Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classGroup ClassGroup @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, date])
+  @@index([classId, date])
+}
+
+model Mission {
+  id          String    @id @default(cuid())
+  schoolId    String
+  classId     String?
+  title       String
+  description String?
+  xpReward    Int       @default(0)
+  coinReward  Int       @default(0)
+  dueDate     DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  school          School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  classGroup      ClassGroup?      @relation(fields: [classId], references: [id], onDelete: SetNull)
+  studentMissions StudentMission[]
+
+  @@index([schoolId])
+}
+
+model StudentMission {
+  id          String    @id @default(cuid())
+  studentId   String
+  missionId   String
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, missionId])
+}
+
+model Badge {
+  id          String   @id @default(cuid())
+  schoolId    String
+  name        String
+  description String?
+  icon        String   @default("star")
+  xpRequired  Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  school        School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  studentBadges StudentBadge[]
+}
+
+model StudentBadge {
+  id        String   @id @default(cuid())
+  studentId String
+  badgeId   String
+  earnedAt  DateTime @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  badge   Badge   @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, badgeId])
+}
+
+model XpTransaction {
+  id        String   @id @default(cuid())
+  studentId String
+  amount    Int
+  reason    String
+  source    String
+  createdAt DateTime @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+}
+
+model Reward {
+  id          String   @id @default(cuid())
+  schoolId    String
+  name        String
+  description String?
+  coinCost    Int
+  stock       Int?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  school      School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  redemptions RewardRedemption[]
+}
+
+model RewardRedemption {
+  id         String   @id @default(cuid())
+  studentId  String
+  rewardId   String
+  coinCost   Int
+  redeemedAt DateTime @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  reward  Reward  @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+}
+
+model ParentStudent {
+  id        String   @id @default(cuid())
+  parentId  String
+  studentId String
+  relation  String   @default("responsavel")
+  createdAt DateTime @default(now())
+
+  parent  User    @relation("ParentUser", fields: [parentId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([parentId, studentId])
+  @@index([parentId])
+  @@index([studentId])
+}

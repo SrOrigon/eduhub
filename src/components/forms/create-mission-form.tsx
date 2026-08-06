@@ -1,0 +1,70 @@
+"use client";
+
+import { useActionState, useState } from "react";
+import { createMissionAction } from "@/actions/crud";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label, Select, Textarea } from "@/components/ui/form-fields";
+import { Modal } from "@/components/ui/modal";
+
+interface ClassOption {
+  id: string;
+  name: string;
+}
+
+export function CreateMissionForm({ classes }: { classes: ClassOption[] }) {
+  const [open, setOpen] = useState(false);
+  const [state, formAction, pending] = useActionState(
+    async (_prev: { error?: string; success?: boolean } | null, formData: FormData) => {
+      const result = await createMissionAction(formData);
+      if (result.success) setOpen(false);
+      return result;
+    },
+    null
+  );
+
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>+ Nova missão</Button>
+      <Modal open={open} onClose={() => setOpen(false)} title="Criar missão">
+        <form action={formAction} className="space-y-4">
+          <div>
+            <Label htmlFor="title">Título</Label>
+            <Input id="title" name="title" required />
+          </div>
+          <div>
+            <Label htmlFor="description">Descrição</Label>
+            <Textarea id="description" name="description" />
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="xpReward">XP</Label>
+              <Input id="xpReward" name="xpReward" type="number" defaultValue={100} />
+            </div>
+            <div>
+              <Label htmlFor="coinReward">Moedas</Label>
+              <Input id="coinReward" name="coinReward" type="number" defaultValue={30} />
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="classId">Turma (opcional)</Label>
+            <Select id="classId" name="classId">
+              <option value="">Toda a escola</option>
+              {classes.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="dueDate">Prazo</Label>
+            <Input id="dueDate" name="dueDate" type="date" />
+          </div>
+          {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
+          <Button type="submit" disabled={pending} className="w-full">
+            {pending ? "Criando..." : "Criar missão"}
+          </Button>
+        </form>
+      </Modal>
+    </>
+  );
+}
