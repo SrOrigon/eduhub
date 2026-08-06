@@ -1,6 +1,7 @@
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getRanking } from "@/lib/queries";
+import { getExercisesForUser } from "@/lib/exercises";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/layout/page-header";
@@ -8,7 +9,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { redirect } from "next/navigation";
-import { BookOpen, ClipboardList, Users, Medal } from "lucide-react";
+import { BookOpen, ClipboardList, Users, Medal, PenLine, AlertCircle } from "lucide-react";
 
 export default async function TeacherDashboardPage() {
   const user = await getSessionUser();
@@ -24,9 +25,18 @@ export default async function TeacherDashboardPage() {
   });
 
   const totalStudents = myClasses.reduce((s, c) => s + c._count.students, 0);
-  const [ranking] = await Promise.all([
+  const [ranking, exercises] = await Promise.all([
     getRanking(user.schoolId),
+    getExercisesForUser(user),
   ]);
+
+  const pendingGrades = exercises.reduce(
+    (n, ex) => n + ex.submissions.filter((s) => s.status === "submitted").length,
+    0
+  );
+  const pendingExercises = exercises.filter((ex) =>
+    ex.submissions.some((s) => s.status === "submitted")
+  );
 
   return (
     <div className="space-y-6">
@@ -58,9 +68,45 @@ export default async function TeacherDashboardPage() {
           <CardContent className="flex flex-wrap gap-2">
             <Link href="/dashboard/notas"><Button size="sm" variant="outline">Lançar nota</Button></Link>
             <Link href="/dashboard/frequencia"><Button size="sm" variant="outline">Frequência</Button></Link>
+            <Link href="/dashboard/exercicios"><Button size="sm" variant="outline">Exercícios</Button></Link>
           </CardContent>
         </Card>
       </div>
+
+      {pendingGrades > 0 && (
+        <Card className="border-amber-200 bg-amber-50/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <AlertCircle className="h-5 w-5 text-amber-600" aria-hidden="true" />
+              {pendingGrades} entrega(s) aguardando correção
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {pendingExercises.slice(0, 5).map((ex) => {
+              const pending = ex.submissions.filter((s) => s.status === "submitted").length;
+              return (
+                <div key={ex.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white p-3">
+                  <div>
+                    <p className="font-medium text-slate-900">{ex.title}</p>
+                    <p className="text-sm text-slate-500">
+                      {ex.classGroup?.name} · {pending} aluno(s)
+                    </p>
+                  </div>
+                  <Link href={`/dashboard/exercicios/${ex.id}`}>
+                    <Button size="sm" className="gap-1">
+                      <PenLine className="h-4 w-4" aria-hidden="true" />
+                      Corrigir
+                    </Button>
+                  </Link>
+                </div>
+              );
+            })}
+            <Link href="/dashboard/exercicios">
+              <Button variant="outline" size="sm">Ver todos os exercícios</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {myClasses.map((turma) => {

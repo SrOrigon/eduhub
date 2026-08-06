@@ -1,13 +1,18 @@
 import Link from "next/link";
-import { Gift, Star, Trophy, Coins, FileText } from "lucide-react";
+import { Gift, Star, Trophy, Coins, FileText, PenLine, ChevronRight } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getRanking, getMissionsForStudent } from "@/lib/queries";
+import { getExercisesForUser } from "@/lib/exercises";
 import { getXpProgress } from "@/lib/gamification";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
+import {
+  ExerciseRewardPills,
+  getStudentExerciseStatus,
+} from "@/components/exercises/exercise-status-badge";
 import { redirect } from "next/navigation";
 
 export default async function AlunoPortalPage() {
@@ -34,10 +39,20 @@ export default async function AlunoPortalPage() {
     );
   }
 
-  const [ranking, missions] = await Promise.all([
+  const [ranking, missions, exercises] = await Promise.all([
     getRanking(user.schoolId),
     getMissionsForStudent(user.schoolId, student.classId),
+    getExercisesForUser(user),
   ]);
+
+  const pendingExercises = exercises
+    .map((ex) => {
+      const sub = ex.submissions[0];
+      const status = getStudentExerciseStatus(sub, ex.dueDate, !!sub);
+      return { ...ex, sub, status };
+    })
+    .filter((ex) => ex.status === "pending")
+    .slice(0, 3);
 
   const myRank = ranking.find((r) => r.id === student.id);
   const avgGrade =
@@ -133,6 +148,47 @@ export default async function AlunoPortalPage() {
           </Card>
         </div>
       </section>
+
+      {pendingExercises.length > 0 && (
+        <section aria-labelledby="activities-heading">
+          <Card className="kid-card border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-white">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle id="activities-heading" className="flex items-center gap-2 text-xl">
+                <PenLine className="h-6 w-6 text-indigo-600" aria-hidden="true" />
+                Minhas atividades
+              </CardTitle>
+              <Link href="/dashboard/exercicios">
+                <Button variant="ghost" size="sm" className="gap-1">
+                  Ver todas <ChevronRight className="h-4 w-4" />
+                </Button>
+              </Link>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {pendingExercises.map((ex) => (
+                <article
+                  key={ex.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-white bg-white p-4 shadow-sm"
+                >
+                  <div className="min-w-0">
+                    <h3 className="text-lg font-bold text-slate-900">{ex.title}</h3>
+                    <ExerciseRewardPills
+                      xp={ex.xpReward}
+                      coins={ex.coinReward}
+                      className="mt-2"
+                    />
+                  </div>
+                  <Link href={`/dashboard/exercicios/${ex.id}`}>
+                    <Button size="lg" className="gap-2">
+                      Começar
+                      <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                    </Button>
+                  </Link>
+                </article>
+              ))}
+            </CardContent>
+          </Card>
+        </section>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="kid-card">

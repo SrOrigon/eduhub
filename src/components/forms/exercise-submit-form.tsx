@@ -3,10 +3,11 @@
 import { useActionState, useState } from "react";
 import { submitExerciseAction } from "@/actions/exercises";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label, Textarea } from "@/components/ui/form-fields";
 import { FormMessage } from "@/components/ui/form-utils";
 import { parseOptions } from "@/lib/exercises";
+import { ChevronLeft, ChevronRight, Send } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type Question = {
   id: string;
@@ -21,11 +22,13 @@ export function ExerciseSubmitForm({
   questions,
   readOnly = false,
   existingAnswers,
+  kidFriendly = false,
 }: {
   exerciseId: string;
   questions: Question[];
   readOnly?: boolean;
   existingAnswers?: Record<string, { textAnswer?: string | null; selectedOptionId?: string | null }>;
+  kidFriendly?: boolean;
 }) {
   const [answers, setAnswers] = useState<Record<string, { textAnswer?: string; selectedOptionId?: string }>>(
     () => {
@@ -40,6 +43,7 @@ export function ExerciseSubmitForm({
       return init;
     }
   );
+  const [step, setStep] = useState(0);
 
   const [state, formAction, pending] = useActionState(
     async (_prev: { error?: string; success?: boolean } | null, formData: FormData) => {
@@ -50,6 +54,12 @@ export function ExerciseSubmitForm({
     null
   );
 
+  const answeredCount = questions.filter((q) => {
+    const a = answers[q.id];
+    return q.type === "choice" ? !!a?.selectedOptionId : !!a?.textAnswer?.trim();
+  }).length;
+  const progress = questions.length > 0 ? Math.round((answeredCount / questions.length) * 100) : 0;
+
   if (readOnly) {
     return (
       <div className="space-y-4">
@@ -57,9 +67,15 @@ export function ExerciseSubmitForm({
           const a = existingAnswers?.[q.id];
           const opts = parseOptions(q.options);
           return (
-            <div key={q.id} className="rounded-xl border border-slate-200 p-4">
+            <div
+              key={q.id}
+              className={cn(
+                "rounded-xl border p-4",
+                kidFriendly ? "border-indigo-200 bg-indigo-50/30 text-lg" : "border-slate-200"
+              )}
+            >
               <p className="font-medium">{i + 1}. {q.prompt}</p>
-              <p className="mt-2 text-sm text-slate-600">
+              <p className="mt-2 text-slate-600">
                 {q.type === "choice"
                   ? opts.find((o) => o.id === a?.selectedOptionId)?.text ?? "—"
                   : a?.textAnswer ?? "—"}
@@ -71,37 +87,101 @@ export function ExerciseSubmitForm({
     );
   }
 
+  if (state?.success) {
+    return (
+      <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50 px-6 py-8 text-center" role="status">
+        <p className={cn("font-bold text-emerald-800", kidFriendly && "text-xl")}>
+          Respostas enviadas com sucesso!
+        </p>
+        <p className="mt-2 text-slate-700">
+          Seu professor vai corrigir em breve. Você receberá uma notificação quando a nota sair.
+        </p>
+      </div>
+    );
+  }
+
+  const q = questions[step];
+  const opts = q ? parseOptions(q.options) : [];
+
+  function canAdvance() {
+    if (!q) return false;
+    const a = answers[q.id];
+    return q.type === "choice" ? !!a?.selectedOptionId : !!a?.textAnswer?.trim();
+  }
+
   return (
     <form action={formAction} className="space-y-4">
-      {questions.map((q, i) => (
-        <div key={q.id} className="rounded-xl border border-slate-200 p-4">
-          <Label className="text-base font-medium">
-            {i + 1}. {q.prompt} <span className="text-slate-500">({q.points} pt{q.points !== 1 ? "s" : ""})</span>
+      <div>
+        <div className="mb-1 flex justify-between text-sm text-slate-600">
+          <span>Progresso: {answeredCount}/{questions.length} questões</span>
+          <span>{progress}%</span>
+        </div>
+        <div
+          className="h-3 overflow-hidden rounded-full bg-slate-200"
+          role="progressbar"
+          aria-valuenow={progress}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <div
+            className="h-full rounded-full bg-indigo-600 transition-all"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+
+      {q && (
+        <div
+          className={cn(
+            "rounded-2xl border-2 p-5",
+            kidFriendly ? "border-indigo-200 bg-white shadow-sm" : "border-slate-200"
+          )}
+        >
+          <p className="text-sm font-medium text-indigo-600">
+            Questão {step + 1} de {questions.length} · {q.points} pt{q.points !== 1 ? "s" : ""}
+          </p>
+          <Label className={cn("mt-2 block", kidFriendly ? "text-xl font-bold" : "text-base font-medium")}>
+            {q.prompt}
           </Label>
+
           {q.type === "choice" ? (
-            <div className="mt-3 space-y-2">
-              {parseOptions(q.options).map((opt) => (
-                <label key={opt.id} className="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 px-3 py-2 hover:bg-slate-50">
-                  <input
-                    type="radio"
-                    name={`q-${q.id}`}
-                    value={opt.id}
-                    checked={answers[q.id]?.selectedOptionId === opt.id}
-                    onChange={() =>
+            <div className="mt-4 space-y-2">
+              {opts.map((opt, oi) => {
+                const selected = answers[q.id]?.selectedOptionId === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() =>
                       setAnswers((prev) => ({
                         ...prev,
                         [q.id]: { ...prev[q.id], selectedOptionId: opt.id },
                       }))
                     }
-                    required
-                  />
-                  <span>{opt.text}</span>
-                </label>
-              ))}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-xl border-2 px-4 py-3 text-left transition-colors",
+                      selected
+                        ? "border-indigo-600 bg-indigo-50 ring-2 ring-indigo-200"
+                        : "border-slate-200 hover:border-indigo-300 hover:bg-slate-50",
+                      kidFriendly && "min-h-14 text-lg"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold",
+                        selected ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-700"
+                      )}
+                    >
+                      {String.fromCharCode(65 + oi)}
+                    </span>
+                    <span>{opt.text}</span>
+                  </button>
+                );
+              })}
             </div>
           ) : (
             <Textarea
-              className="mt-3"
+              className={cn("mt-4", kidFriendly && "min-h-32 text-lg")}
               value={answers[q.id]?.textAnswer ?? ""}
               onChange={(e) =>
                 setAnswers((prev) => ({
@@ -109,21 +189,61 @@ export function ExerciseSubmitForm({
                   [q.id]: { ...prev[q.id], textAnswer: e.target.value },
                 }))
               }
-              placeholder="Digite sua resposta..."
-              required
+              placeholder="Escreva sua resposta aqui..."
+              rows={kidFriendly ? 5 : 4}
             />
           )}
         </div>
-      ))}
-      <FormMessage message={state} />
-      {state?.success && (
-        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800" role="status">
-          Respostas enviadas! Aguarde a correção do professor.
-        </p>
       )}
-      <Button type="submit" disabled={pending} className="w-full" size="lg">
-        {pending ? "Enviando..." : "Enviar respostas"}
-      </Button>
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={step === 0}
+          onClick={() => setStep((s) => s - 1)}
+          className="gap-1"
+        >
+          <ChevronLeft className="h-4 w-4" /> Anterior
+        </Button>
+        {step < questions.length - 1 ? (
+          <Button
+            type="button"
+            className="ml-auto gap-1"
+            disabled={!canAdvance()}
+            onClick={() => setStep((s) => s + 1)}
+          >
+            Próxima <ChevronRight className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button
+            type="submit"
+            disabled={pending || answeredCount < questions.length}
+            className="ml-auto gap-2"
+            size={kidFriendly ? "lg" : "default"}
+          >
+            <Send className="h-4 w-4" aria-hidden="true" />
+            {pending ? "Enviando..." : "Enviar tudo"}
+          </Button>
+        )}
+      </div>
+
+      <div className="flex flex-wrap justify-center gap-1">
+        {questions.map((_, i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={() => setStep(i)}
+            className={cn(
+              "h-2.5 w-2.5 rounded-full",
+              i === step ? "bg-indigo-600" : answeredCount > i ? "bg-indigo-300" : "bg-slate-300"
+            )}
+            aria-label={`Ir para questão ${i + 1}`}
+          />
+        ))}
+      </div>
+
+      <FormMessage message={state} />
     </form>
   );
 }

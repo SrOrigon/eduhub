@@ -1,15 +1,19 @@
-import Link from "next/link";
 import { getSessionUser } from "@/lib/auth";
 import { getExerciseById, EXERCISE_KIND_LABELS } from "@/lib/exercises";
 import { PageHeader } from "@/components/layout/page-header";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ExerciseSubmitForm } from "@/components/forms/exercise-submit-form";
 import { GradeSubmissionForm } from "@/components/forms/grade-submission-form";
 import { EditExerciseForm } from "@/components/forms/edit-exercise-form";
+import {
+  ExerciseRewardPills,
+  ExerciseStatusBadge,
+  getStudentExerciseStatus,
+} from "@/components/exercises/exercise-status-badge";
 import { formatDate } from "@/lib/utils";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { AlertCircle, CheckCircle2, PartyPopper } from "lucide-react";
 
 export default async function ExerciseDetailPage({
   params,
@@ -38,6 +42,13 @@ export default async function ExerciseDetailPage({
     : undefined;
 
   const pastDue = exercise.dueDate ? new Date() > exercise.dueDate : false;
+  const studentStatus =
+    user.role === "student"
+      ? getStudentExerciseStatus(studentSubmission ?? undefined, exercise.dueDate, !!studentSubmission)
+      : null;
+
+  const pendingSubs = exercise.submissions.filter((s) => s.status === "submitted");
+  const gradedSubs = exercise.submissions.filter((s) => s.status === "graded");
 
   return (
     <div className="space-y-6">
@@ -50,55 +61,99 @@ export default async function ExerciseDetailPage({
           (exercise.classGroup ? ` · ${exercise.classGroup.name}` : "")
         }
       >
-        <div className="flex flex-wrap gap-2">
-          <Badge variant="success">+{exercise.xpReward} XP</Badge>
-          <Badge variant="warning">+{exercise.coinReward} moedas</Badge>
-          {!exercise.isActive && <Badge variant="danger">Inativo</Badge>}
-        </div>
+        <ExerciseRewardPills
+          xp={exercise.xpReward}
+          coins={exercise.coinReward}
+          points={exercise.maxPoints}
+        />
       </PageHeader>
 
+      {user.role === "student" && studentStatus && (
+        <div
+          className={`rounded-2xl border-2 px-5 py-4 ${
+            studentStatus === "graded"
+              ? "border-emerald-200 bg-emerald-50"
+              : studentStatus === "pending"
+                ? "border-indigo-200 bg-indigo-50"
+                : studentStatus === "overdue"
+                  ? "border-red-200 bg-red-50"
+                  : "border-slate-200 bg-slate-50"
+          }`}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <ExerciseStatusBadge
+              status={studentStatus}
+              score={studentSubmission?.score}
+              maxScore={studentSubmission?.maxScore}
+              className="text-base px-3 py-1"
+            />
+            {exercise.dueDate && (
+              <p className="text-sm text-slate-600">
+                Prazo: <strong>{formatDate(exercise.dueDate)}</strong>
+              </p>
+            )}
+          </div>
+          {studentStatus === "pending" && (
+            <p className="mt-2 text-base text-indigo-900">
+              Responda questão por questão — ao enviar, seu professor será avisado.
+            </p>
+          )}
+          {studentStatus === "graded" && studentSubmission?.feedback && (
+            <p className="mt-3 rounded-lg bg-white/80 p-3 text-base text-slate-800">
+              <strong>Mensagem do professor:</strong> {studentSubmission.feedback}
+            </p>
+          )}
+        </div>
+      )}
+
       {exercise.description && (
-        <Card>
-          <CardContent className="py-4 text-slate-700">{exercise.description}</CardContent>
+        <Card className={user.role === "student" ? "kid-card border-indigo-100" : ""}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base text-slate-600">Instruções</CardTitle>
+          </CardHeader>
+          <CardContent className="text-slate-700">{exercise.description}</CardContent>
         </Card>
       )}
 
-      {exercise.dueDate && (
+      {isStaff && exercise.dueDate && (
         <p className="text-sm text-slate-600">
-          Prazo: <strong>{formatDate(exercise.dueDate)}</strong>
-          {pastDue && user.role === "student" && !studentSubmission && (
-            <span className="ml-2 text-red-600">(prazo encerrado)</span>
-          )}
+          Prazo de entrega: <strong>{formatDate(exercise.dueDate)}</strong>
         </p>
       )}
 
       {user.role === "student" && (
-        <Card>
+        <Card className="kid-card border-2 border-indigo-100">
           <CardHeader>
-            <CardTitle>
+            <CardTitle className="text-xl">
               {studentSubmission?.status === "graded"
-                ? "Sua entrega — corrigida"
+                ? "Suas respostas"
                 : studentSubmission
                   ? "Revisar e reenviar"
-                  : "Responder exercício"}
+                  : "Hora de responder!"}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {studentSubmission?.status === "graded" ? (
               <>
-                <p className="mb-4 text-lg font-bold text-indigo-700">
-                  Nota: {studentSubmission.score?.toFixed(1)} / {studentSubmission.maxScore?.toFixed(1)} pts
-                </p>
-                {studentSubmission.feedback && (
-                  <p className="mb-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
-                    Feedback: {studentSubmission.feedback}
-                  </p>
-                )}
+                <div className="mb-6 flex items-center gap-3 rounded-xl bg-emerald-100 px-4 py-3">
+                  <PartyPopper className="h-8 w-8 text-emerald-600" aria-hidden="true" />
+                  <div>
+                    <p className="text-xl font-bold text-emerald-900">
+                      Nota: {studentSubmission.score?.toFixed(1)} / {studentSubmission.maxScore?.toFixed(1)} pts
+                    </p>
+                    <p className="text-sm text-emerald-800">
+                      +{Math.round((studentSubmission.score ?? 0) / (studentSubmission.maxScore ?? 1) * exercise.xpReward)} XP
+                      {" · "}
+                      +{Math.round((studentSubmission.score ?? 0) / (studentSubmission.maxScore ?? 1) * exercise.coinReward)} moedas
+                    </p>
+                  </div>
+                </div>
                 <ExerciseSubmitForm
                   exerciseId={exercise.id}
                   questions={exercise.questions}
                   readOnly
                   existingAnswers={answerMap}
+                  kidFriendly
                 />
               </>
             ) : !pastDue || studentSubmission ? (
@@ -106,9 +161,10 @@ export default async function ExerciseDetailPage({
                 exerciseId={exercise.id}
                 questions={exercise.questions}
                 existingAnswers={answerMap}
+                kidFriendly
               />
             ) : (
-              <p className="text-slate-600">O prazo para entrega encerrou.</p>
+              <p className="text-lg text-slate-600">O prazo para entrega encerrou. Fale com seu professor.</p>
             )}
           </CardContent>
         </Card>
@@ -132,24 +188,16 @@ export default async function ExerciseDetailPage({
             />
           )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Entregas dos alunos ({exercise.submissions.length})</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {exercise.submissions.length === 0 && (
-                <p className="text-slate-500">Nenhuma entrega ainda.</p>
-              )}
-              {exercise.submissions.map((sub) =>
-                sub.status === "graded" ? (
-                  <div key={sub.id} className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
-                    <p className="font-semibold">{sub.student.user.fullName}</p>
-                    <p className="text-sm text-emerald-800">
-                      Corrigido: {sub.score?.toFixed(1)}/{sub.maxScore?.toFixed(1)} pts
-                    </p>
-                    {sub.feedback && <p className="mt-1 text-sm text-slate-600">{sub.feedback}</p>}
-                  </div>
-                ) : (
+          {pendingSubs.length > 0 && (
+            <Card className="border-amber-200 bg-amber-50/40">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <AlertCircle className="h-5 w-5 text-amber-600" aria-hidden="true" />
+                  {pendingSubs.length} entrega(s) para corrigir
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {pendingSubs.map((sub) => (
                   <GradeSubmissionForm
                     key={sub.id}
                     submissionId={sub.id}
@@ -157,10 +205,40 @@ export default async function ExerciseDetailPage({
                     questions={exercise.questions}
                     answers={sub.answers}
                   />
-                )
-              )}
-            </CardContent>
-          </Card>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {gradedSubs.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600" aria-hidden="true" />
+                  Já corrigidas ({gradedSubs.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {gradedSubs.map((sub) => (
+                  <div key={sub.id} className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+                    <p className="font-semibold">{sub.student.user.fullName}</p>
+                    <p className="text-sm text-emerald-800">
+                      {sub.score?.toFixed(1)}/{sub.maxScore?.toFixed(1)} pts
+                    </p>
+                    {sub.feedback && <p className="mt-1 text-sm text-slate-600">{sub.feedback}</p>}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {exercise.submissions.length === 0 && (
+            <Card>
+              <CardContent className="py-8 text-center text-slate-500">
+                Nenhum aluno entregou ainda. Compartilhe o link ou avise a turma.
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
     </div>
