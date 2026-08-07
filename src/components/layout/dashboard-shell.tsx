@@ -13,6 +13,7 @@ export function DashboardShell({
   userName,
   schoolName,
   role,
+  avatarUrl,
   branding,
   permissions,
   features,
@@ -21,6 +22,7 @@ export function DashboardShell({
   userName: string;
   schoolName: string;
   role: UserRole;
+  avatarUrl?: string | null;
   branding: SchoolSettings["branding"];
   permissions: SchoolSettings["permissions"];
   features?: { trailsEnabled: boolean };
@@ -44,6 +46,7 @@ export function DashboardShell({
           userName={userName}
           schoolName={schoolName}
           role={role}
+          avatarUrl={avatarUrl}
           kidFriendly={kidFriendly}
           permissions={permissions}
           features={features}
@@ -57,6 +60,7 @@ export function DashboardShell({
             userName={userName}
             schoolName={schoolName}
             role={role}
+            avatarUrl={avatarUrl}
             onMenuClick={() => setMobileMenuOpen(true)}
           />
           <main

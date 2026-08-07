@@ -16,6 +16,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       userName={user.fullName}
       schoolName={school?.name ?? "Sem escola"}
       role={user.role}
+      avatarUrl={user.avatarUrl}
       branding={settings.branding}
       permissions={settings.permissions}
       features={{ trailsEnabled: settings.trails.enabled }}

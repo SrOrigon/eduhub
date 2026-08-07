@@ -13,6 +13,7 @@ import {
   Target,
   User,
   Users,
+  UserCircle,
   X,
   UserCog,
   Gift,
@@ -38,6 +39,7 @@ import {
 import type { SchoolSettings } from "@/lib/school-settings";
 import { logoutAction } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
+import { ProfileAvatar } from "@/components/profile/profile-avatar";
 
 type NavItem = {
   href: string;
@@ -89,6 +91,7 @@ const allNavItems: NavItem[] = [
   { href: "/dashboard/comunicados", label: "Comunicados", icon: Megaphone, roles: ["admin", "director", "teacher", "student", "parent"] },
   { href: "/dashboard/busca", label: "Busca", icon: BookOpen, roles: ["student", "parent"] },
   { href: "/dashboard/notificacoes", label: "Notificações", icon: Bell, roles: ["admin", "director", "teacher", "student", "parent"] },
+  { href: "/dashboard/perfil", label: "Minha conta", icon: UserCircle, roles: ["admin", "director", "teacher", "student", "parent"] },
   { href: "/dashboard/configuracoes", label: "Configurações", icon: Settings, roles: ["admin", "director"], permission: "director.editSettings" },
 ];
 
@@ -166,6 +169,7 @@ export function Sidebar({
   userName,
   schoolName,
   role,
+  avatarUrl,
   kidFriendly,
   permissions,
   features,
@@ -177,6 +181,7 @@ export function Sidebar({
   userName: string;
   schoolName: string;
   role: UserRole;
+  avatarUrl?: string | null;
   kidFriendly: boolean;
   permissions: SchoolSettings["permissions"];
   features?: { trailsEnabled: boolean };
@@ -222,6 +227,7 @@ export function Sidebar({
               userName={userName}
               schoolName={schoolName}
               role={role}
+              avatarUrl={avatarUrl}
               permissions={permissions}
               features={features}
               tagline={tagline}
@@ -241,6 +247,7 @@ export function Sidebar({
           userName={userName}
           schoolName={schoolName}
           role={role}
+          avatarUrl={avatarUrl}
           permissions={permissions}
           features={features}
           tagline={tagline}
@@ -256,6 +263,7 @@ function SidebarContent({
   userName,
   schoolName,
   role,
+  avatarUrl,
   permissions,
   features,
   tagline,
@@ -266,6 +274,7 @@ function SidebarContent({
   userName: string;
   schoolName: string;
   role: UserRole;
+  avatarUrl?: string | null;
   permissions: SchoolSettings["permissions"];
   features?: { trailsEnabled: boolean };
   tagline?: string;
@@ -295,9 +304,18 @@ function SidebarContent({
         />
       </div>
       <div className="shrink-0 border-t border-slate-200 p-4">
-        <p className="truncate text-sm font-semibold text-slate-900">{userName}</p>
-        <p className="truncate text-sm text-slate-600">{schoolName}</p>
-        <form action={logoutAction} className="mt-3">
+        <Link
+          href="/dashboard/perfil"
+          onClick={onNavigate}
+          className="mb-3 flex min-h-12 items-center gap-3 rounded-xl p-2 transition hover:bg-slate-50 active:bg-slate-100"
+        >
+          <ProfileAvatar name={userName} avatarUrl={avatarUrl} size="sm" className="ring-2" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-slate-900">{userName}</p>
+            <p className="truncate text-xs text-slate-600">{schoolName}</p>
+          </div>
+        </Link>
+        <form action={logoutAction} className="mt-1">
           <Button type="submit" variant="outline" size={kidFriendly ? "lg" : "default"} className="w-full">
             Sair
           </Button>

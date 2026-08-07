@@ -14,6 +14,7 @@ export interface SessionUser {
   fullName: string;
   role: UserRole;
   schoolId: string | null;
+  avatarUrl: string | null;
 }
 
 export async function createSessionToken(userId: string) {
@@ -54,7 +55,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     const userId = await verifySessionToken(token);
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, fullName: true, role: true, schoolId: true },
+      select: { id: true, email: true, fullName: true, role: true, schoolId: true, avatarUrl: true },
     });
     if (!user) return null;
     return { ...user, role: user.role as SessionUser["role"] };

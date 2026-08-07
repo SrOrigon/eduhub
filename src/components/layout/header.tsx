@@ -6,16 +6,19 @@ import { Badge } from "@/components/ui/badge";
 import { ROLE_LABELS, type UserRole } from "@/lib/constants";
 import { SearchBar } from "@/components/layout/search-bar";
 import { NotificationBell } from "@/components/layout/notification-bell";
+import { ProfileAvatar } from "@/components/profile/profile-avatar";
 
 export function Header({
   userName,
   schoolName,
   role,
+  avatarUrl,
   onMenuClick,
 }: {
   userName: string;
   schoolName: string;
   role: UserRole;
+  avatarUrl?: string | null;
   onMenuClick: () => void;
 }) {
   const showSearch =
@@ -54,7 +57,7 @@ export function Header({
             )}
           </div>
 
-          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
             {showSearch && (
               <Link
                 href="/dashboard/busca"
@@ -65,16 +68,17 @@ export function Header({
               </Link>
             )}
             <NotificationBell />
-            <Badge variant="secondary" className="hidden sm:inline-flex">
+            <Badge variant="secondary" className="hidden md:inline-flex">
               {ROLE_LABELS[role]}
             </Badge>
-            <div
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[color:var(--school-primary)] text-sm font-bold text-white sm:h-11 sm:w-11 sm:text-base"
-              aria-hidden="true"
+            <Link
+              href="/dashboard/perfil"
+              className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full transition hover:opacity-90"
+              aria-label="Abrir minha conta"
+              title="Minha conta"
             >
-              {userName.charAt(0)}
-            </div>
-            <span className="sr-only">Usuário: {userName}</span>
+              <ProfileAvatar name={userName} avatarUrl={avatarUrl} size="sm" />
+            </Link>
           </div>
         </div>
 
