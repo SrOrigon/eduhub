@@ -8,6 +8,7 @@ import { LinkParentForm } from "@/components/forms/link-parent-form";
 import { UnlinkParentButton } from "@/components/forms/unlink-parent-button";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { UserIdentity } from "@/components/profile/user-identity";
 import { Heart } from "lucide-react";
 import { redirect } from "next/navigation";
 
@@ -42,8 +43,12 @@ export default async function ResponsaveisPage() {
         {parents.map((parent) => (
           <Card key={parent.id}>
             <CardHeader>
-              <CardTitle className="text-base">{parent.fullName}</CardTitle>
-              <p className="text-sm text-slate-500">{parent.email}</p>
+              <UserIdentity
+                name={parent.fullName}
+                avatarUrl={parent.avatarUrl}
+                subtitle={parent.email}
+                size="md"
+              />
             </CardHeader>
             <CardContent>
               {parent.parentLinks.length === 0 ? (
@@ -51,14 +56,14 @@ export default async function ResponsaveisPage() {
               ) : (
                 <ul className="space-y-2">
                   {parent.parentLinks.map((link) => (
-                    <li key={link.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                      <div>
-                        <span className="font-medium">{link.student.user.fullName}</span>
-                        <span className="ml-2 text-sm text-slate-500">
-                          ({relationLabels[link.relation] ?? link.relation})
-                          {link.student.classGroup && ` · ${link.student.classGroup.name}`}
-                        </span>
-                      </div>
+                    <li key={link.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                      <UserIdentity
+                        name={link.student.user.fullName}
+                        avatarUrl={link.student.user.avatarUrl}
+                        subtitle={`${relationLabels[link.relation] ?? link.relation}${link.student.classGroup ? ` · ${link.student.classGroup.name}` : ""}`}
+                        size="xs"
+                        className="min-w-0 flex-1"
+                      />
                       <UnlinkParentButton
                         linkId={link.id}
                         studentName={link.student.user.fullName}

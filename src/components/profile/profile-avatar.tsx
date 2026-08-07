@@ -13,17 +13,26 @@ export function ProfileAvatar({
 }: {
   name: string;
   avatarUrl?: string | null;
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "xs" | "sm" | "md" | "lg" | "xl";
   className?: string;
   onImageError?: () => void;
 }) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
 
   const sizes = {
+    xs: "h-8 w-8 text-xs",
     sm: "h-10 w-10 text-sm",
     md: "h-14 w-14 text-lg",
     lg: "h-20 w-20 text-2xl",
     xl: "h-28 w-28 text-4xl",
+  };
+
+  const ringSizes = {
+    xs: "ring-1",
+    sm: "ring-2",
+    md: "ring-2",
+    lg: "ring-4",
+    xl: "ring-4",
   };
 
   const initials = name
@@ -36,14 +45,32 @@ export function ProfileAvatar({
   const showImage = Boolean(avatarUrl) && avatarUrl !== failedUrl;
 
   if (showImage) {
+    const isDataUrl = avatarUrl!.startsWith("data:");
+    const imageClass = cn(
+      "relative overflow-hidden rounded-full shadow-md",
+      ringSizes[size],
+      "ring-white",
+      sizes[size],
+      className
+    );
+
+    if (isDataUrl) {
+      return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={avatarUrl!}
+          alt={`Foto de ${name}`}
+          className={cn(imageClass, "object-cover")}
+          onError={() => {
+            setFailedUrl(avatarUrl!);
+            onImageError?.();
+          }}
+        />
+      );
+    }
+
     return (
-      <div
-        className={cn(
-          "relative overflow-hidden rounded-full ring-4 ring-white shadow-md",
-          sizes[size],
-          className
-        )}
-      >
+      <div className={imageClass}>
         <Image
           src={avatarUrl!}
           alt={`Foto de ${name}`}
@@ -62,7 +89,9 @@ export function ProfileAvatar({
   return (
     <div
       className={cn(
-        "flex items-center justify-center rounded-full bg-[color:var(--school-primary,#4f46e5)] font-bold text-white ring-4 ring-white shadow-md",
+        "flex items-center justify-center rounded-full bg-[color:var(--school-primary,#4f46e5)] font-bold text-white shadow-md",
+        ringSizes[size],
+        "ring-white",
         sizes[size],
         className
       )}

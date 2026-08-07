@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { getSessionUser } from "@/lib/auth";
 import { getStudents, getClasses } from "@/lib/queries";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +6,7 @@ import { CreateStudentForm } from "@/components/forms/create-student-form";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ResponsiveTable } from "@/components/ui/responsive-table";
+import { UserIdentity } from "@/components/profile/user-identity";
 import { Users } from "lucide-react";
 import { redirect } from "next/navigation";
 
@@ -64,10 +64,14 @@ export default async function AlunosPage() {
                 return (
                   <tr key={student.id} className="border-b border-slate-100">
                     <td className="py-3 pr-4 font-mono text-xs">{student.enrollmentCode}</td>
-                    <td className="max-w-[10rem] py-3 pr-4 font-medium sm:max-w-none">
-                      <Link href={`/dashboard/alunos/${student.id}`} className="text-indigo-600 hover:underline">
-                        {student.user.fullName}
-                      </Link>
+                    <td className="max-w-[14rem] py-3 pr-4 sm:max-w-none">
+                      <UserIdentity
+                        name={student.user.fullName}
+                        avatarUrl={student.user.avatarUrl}
+                        href={`/dashboard/alunos/${student.id}`}
+                        subtitle={student.classGroup?.name ?? undefined}
+                        size="xs"
+                      />
                     </td>
                     <td className="hidden py-3 pr-4 text-slate-500 md:table-cell">{student.user.email}</td>
                     <td className="py-3 pr-4">{student.classGroup?.name ?? "-"}</td>

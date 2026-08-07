@@ -11,6 +11,7 @@ import { ATTENDANCE_LABELS, type AttendanceStatus } from "@/lib/constants";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { BookOpen, FileText, Medal, Target } from "lucide-react";
+import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { EditStudentForm } from "@/components/forms/edit-student-form";
 import { DeleteStudentButton } from "@/components/forms/delete-student-button";
 import { Button } from "@/components/ui/button";
@@ -81,6 +82,24 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
           )}
         </div>
       </PageHeader>
+
+      <Card className="overflow-hidden border-2 border-indigo-100">
+        <CardContent className="flex flex-col items-center gap-4 p-6 text-center sm:flex-row sm:items-center sm:text-left">
+          <ProfileAvatar
+            name={student.user.fullName}
+            avatarUrl={student.user.avatarUrl}
+            size="xl"
+          />
+          <div className="min-w-0 space-y-1">
+            <p className="text-sm text-slate-500">{student.user.email}</p>
+            {!student.user.avatarUrl && (
+              <p className="text-xs text-slate-500">
+                Sem foto de perfil — o aluno pode adicionar em Minha conta.
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>

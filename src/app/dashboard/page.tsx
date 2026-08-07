@@ -23,6 +23,7 @@ import {
   getClassComparison,
 } from "@/lib/queries";
 import { formatPercent } from "@/lib/utils";
+import { RankingTableRows } from "@/components/profile/ranking-list";
 import { redirect } from "next/navigation";
 
 export default async function DashboardPage() {
@@ -102,21 +103,7 @@ export default async function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {ranking.map((item) => (
-                    <tr key={item.id} className="border-b border-slate-100">
-                      <td className="py-3 pr-4 font-medium">{item.rank}</td>
-                      <td className="max-w-[8rem] py-3 pr-4 sm:max-w-none">
-                        <Link href={`/dashboard/alunos/${item.id}`} className="text-indigo-600 hover:underline">
-                          {item.name}
-                        </Link>
-                      </td>
-                      <td className="hidden py-3 pr-4 sm:table-cell">{item.className}</td>
-                      <td className="py-3 pr-4">
-                        <Badge>Nv. {item.level}</Badge>
-                      </td>
-                      <td className="py-3 font-semibold text-indigo-600">{item.xp.toLocaleString("pt-BR")}</td>
-                    </tr>
-                  ))}
+                  <RankingTableRows items={ranking} />
                 </tbody>
               </ResponsiveTable>
             )}

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CreateClassForm } from "@/components/forms/create-class-form";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { UserIdentity } from "@/components/profile/user-identity";
 import { GraduationCap } from "lucide-react";
 import { redirect } from "next/navigation";
 
@@ -59,16 +60,33 @@ export default async function TurmasPage() {
             <Card key={turma.id}>
               <CardHeader>
                 <CardTitle>{turma.name}</CardTitle>
-                <p className="text-sm text-slate-500">
-                  {turma.gradeLevel}º ano · {turma.year}
-                  {!isTeacher && ` · Prof. ${turma.teacher?.fullName ?? "Não definido"}`}
-                </p>
+                {turma.teacher && (
+                  <UserIdentity
+                    name={turma.teacher.fullName}
+                    avatarUrl={turma.teacher.avatarUrl}
+                    subtitle={`${turma.gradeLevel}º ano · ${turma.year}`}
+                    size="xs"
+                    className="mt-2"
+                  />
+                )}
+                {!turma.teacher && (
+                  <p className="text-sm text-slate-500">
+                    {turma.gradeLevel}º ano · {turma.year}
+                    {!isTeacher && " · Prof. Não definido"}
+                  </p>
+                )}
               </CardHeader>
               <CardContent>
                 <p className="mb-3 text-sm font-medium">{turma._count.students} alunos matriculados</p>
-                <ul className="space-y-1 text-sm text-slate-600">
+                <ul className="space-y-2 text-sm text-slate-600">
                   {turma.students.map((a) => (
-                    <li key={a.id} className="truncate">• {a.user.fullName}</li>
+                    <li key={a.id}>
+                      <UserIdentity
+                        name={a.user.fullName}
+                        avatarUrl={a.user.avatarUrl}
+                        size="xs"
+                      />
+                    </li>
                   ))}
                 </ul>
               </CardContent>

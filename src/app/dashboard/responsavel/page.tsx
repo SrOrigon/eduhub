@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { UserIdentity } from "@/components/profile/user-identity";
 import { CreateHomeTaskForm } from "@/components/forms/create-home-task-form";
 import { ParentHomeTasksPanel } from "@/components/home-tasks/parent-home-tasks-panel";
 import { redirect } from "next/navigation";
@@ -82,12 +83,13 @@ export default async function ResponsavelPortalPage() {
               <Card key={student.id}>
                 <CardHeader>
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                      <CardTitle>{student.user.fullName}</CardTitle>
-                      <p className="text-sm text-slate-500">
-                        {relationLabels[relation] ?? relation} · {student.classGroup?.name ?? "Sem turma"}
-                      </p>
-                    </div>
+                    <UserIdentity
+                      name={student.user.fullName}
+                      avatarUrl={student.user.avatarUrl}
+                      subtitle={`${relationLabels[relation] ?? relation} · ${student.classGroup?.name ?? "Sem turma"}`}
+                      size="md"
+                      className="flex-1"
+                    />
                     <Link href={`/dashboard/responsavel/filho/${student.id}`} className="w-full sm:w-auto">
                       <Button size="sm" variant="outline" className="w-full sm:w-auto">
                         Ver detalhes

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { UserIdentity } from "@/components/profile/user-identity";
 import { Search } from "lucide-react";
 
 export default async function BuscaPage({
@@ -63,8 +64,12 @@ export default async function BuscaPage({
           matches.map(({ student }) => (
             <Card key={student.id}>
               <CardHeader>
-                <CardTitle>{student.user.fullName}</CardTitle>
-                <p className="text-sm text-slate-500">{student.classGroup?.name ?? "Sem turma"}</p>
+                <UserIdentity
+                  name={student.user.fullName}
+                  avatarUrl={student.user.avatarUrl}
+                  subtitle={student.classGroup?.name ?? "Sem turma"}
+                  size="md"
+                />
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2">
                 <Link href={`/dashboard/responsavel/filho/${student.id}`}>

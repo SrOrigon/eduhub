@@ -100,7 +100,7 @@ export async function getParentsForSchool(schoolId: string | null) {
     include: {
       student: {
         include: {
-          user: { select: { fullName: true } },
+          user: { select: { fullName: true, avatarUrl: true } },
           classGroup: true,
         },
       },

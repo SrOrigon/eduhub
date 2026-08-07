@@ -60,7 +60,7 @@ export async function getRanking(schoolId: string | null, classId?: string | nul
       ...(classId ? { classId } : {}),
     },
     include: {
-      user: { select: { fullName: true } },
+      user: { select: { fullName: true, avatarUrl: true } },
       classGroup: { select: { name: true } },
     },
     orderBy: { xpTotal: "desc" },
@@ -71,6 +71,7 @@ export async function getRanking(schoolId: string | null, classId?: string | nul
     rank: i + 1,
     id: s.id,
     name: s.user.fullName,
+    avatarUrl: s.user.avatarUrl,
     xp: s.xpTotal,
     level: s.level,
     coins: s.coins,
@@ -181,7 +182,7 @@ export async function getStudents(schoolId: string | null) {
   return prisma.student.findMany({
     where: { user: { schoolId } },
     include: {
-      user: { select: { fullName: true, email: true } },
+      user: { select: { fullName: true, email: true, avatarUrl: true } },
       classGroup: { select: { id: true, name: true } },
       grades: { select: { value: true } },
     },
@@ -213,8 +214,8 @@ export async function getClasses(schoolId: string | null, teacherId?: string) {
       ...(teacherId ? { teacherId } : {}),
     },
     include: {
-      teacher: { select: { fullName: true } },
-      students: { include: { user: { select: { fullName: true } } } },
+      teacher: { select: { fullName: true, avatarUrl: true } },
+      students: { include: { user: { select: { fullName: true, avatarUrl: true } } } },
       _count: { select: { students: true } },
     },
     orderBy: { name: "asc" },
@@ -302,7 +303,7 @@ export async function getTeachers(schoolId: string | null) {
   if (!schoolId) return [];
   return prisma.user.findMany({
     where: { schoolId, role: "teacher" },
-    select: { id: true, fullName: true, email: true },
+    select: { id: true, fullName: true, email: true, avatarUrl: true },
   });
 }
 

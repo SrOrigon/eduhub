@@ -50,7 +50,7 @@ type ProfilePayload = {
     relation: string;
     student: {
       id: string;
-      user: { fullName: string };
+      user: { fullName: string; avatarUrl: string | null };
       classGroup: { name: string } | null;
     };
   }[];
@@ -286,13 +286,20 @@ function RoleStatsCard({ profile, role }: { profile: ProfilePayload; role: UserR
             <Link
               key={link.student.id}
               href={`/dashboard/responsavel/filho/${link.student.id}`}
-              className="flex min-h-12 flex-col gap-1 rounded-xl border border-slate-100 px-4 py-3 text-sm transition hover:bg-slate-50 active:bg-slate-100 sm:flex-row sm:items-center sm:justify-between"
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-100 px-4 py-3 text-sm transition hover:bg-slate-50 active:bg-slate-100"
             >
-              <span className="font-medium text-slate-900">{link.student.user.fullName}</span>
-              <span className="text-slate-500">
-                {relationLabels[link.relation] ?? link.relation}
-                {link.student.classGroup?.name ? ` · ${link.student.classGroup.name}` : ""}
-              </span>
+              <ProfileAvatar
+                name={link.student.user.fullName}
+                avatarUrl={link.student.user.avatarUrl}
+                size="sm"
+              />
+              <div className="min-w-0 flex-1">
+                <span className="font-medium text-slate-900">{link.student.user.fullName}</span>
+                <span className="block text-slate-500">
+                  {relationLabels[link.relation] ?? link.relation}
+                  {link.student.classGroup?.name ? ` · ${link.student.classGroup.name}` : ""}
+                </span>
+              </div>
             </Link>
           ))}
         </CardContent>

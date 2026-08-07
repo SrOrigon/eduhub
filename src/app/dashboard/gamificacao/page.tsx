@@ -13,6 +13,7 @@ import { getSchoolSettings } from "@/lib/school-settings";
 import { getRewardsForSchool } from "@/actions/rewards";
 import { getRewardCategoriesForSchool } from "@/actions/reward-categories";
 import { InstitutionShopManager } from "@/components/shop/institution-shop-manager";
+import { RankingList } from "@/components/profile/ranking-list";
 import { redirect } from "next/navigation";
 
 const iconMap = { clock: Clock, star: Star, target: Target };
@@ -160,23 +161,7 @@ export default async function GamificacaoPage() {
             {ranking.length === 0 ? (
               <EmptyState title="Ranking vazio" description="Cadastre alunos para ver o ranking." />
             ) : (
-              <ol className="space-y-3">
-                {ranking.map((item) => (
-                  <li key={item.id} className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">
-                      {item.rank}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{item.name}</p>
-                      <p className="truncate text-xs text-slate-500">{item.className}</p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="font-bold text-indigo-600">{item.xp} XP</p>
-                      <p className="text-xs text-slate-500">Nv. {item.level} · {item.coins} moedas</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
+              <RankingList items={ranking} />
             )}
           </CardContent>
         </Card>

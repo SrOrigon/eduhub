@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CreateTeacherForm } from "@/components/forms/create-teacher-form";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { UserIdentity } from "@/components/profile/user-identity";
 import { UserCog } from "lucide-react";
 import { redirect } from "next/navigation";
 
@@ -42,8 +43,12 @@ export default async function ProfessoresPage() {
           {teachersWithClasses.map((teacher) => (
             <Card key={teacher.id}>
               <CardHeader>
-                <CardTitle className="text-base">{teacher.fullName}</CardTitle>
-                <p className="text-sm text-slate-500">{teacher.email}</p>
+                <UserIdentity
+                  name={teacher.fullName}
+                  avatarUrl={teacher.avatarUrl}
+                  subtitle={teacher.email}
+                  size="md"
+                />
               </CardHeader>
               <CardContent>
                 <p className="text-sm font-medium">{teacher.classes.length} turma(s)</p>
