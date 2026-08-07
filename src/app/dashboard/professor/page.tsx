@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getRanking } from "@/lib/queries";
 import { getExercisesForUser } from "@/lib/exercises";
 import { getSchoolSettings } from "@/lib/school-settings";
+import { SchoolCalendarWidget } from "@/components/school/school-calendar-widget";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/layout/page-header";
@@ -64,6 +65,8 @@ export default async function TeacherDashboardPage() {
           </div>
         </CardContent>
       </Card>
+
+      <SchoolCalendarWidget settings={settings} compact />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>

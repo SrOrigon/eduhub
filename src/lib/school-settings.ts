@@ -8,6 +8,17 @@ export type ExercisePreset = {
   points: number;
 };
 
+export type CalendarEvent = {
+  date: string;
+  label: string;
+  kind?: "exam" | "event" | "meeting";
+};
+
+export type SchoolHoliday = {
+  date: string;
+  label: string;
+};
+
 export type SchoolSettings = {
   xp: {
     perGradePoint: number;
@@ -46,6 +57,45 @@ export type SchoolSettings = {
   shop: {
     teachersCanFulfill: boolean;
     requireStock: boolean;
+  };
+  calendar: {
+    yearStart: string;
+    yearEnd: string;
+    classStartTime: string;
+    classEndTime: string;
+    schoolDays: number[];
+    holidays: SchoolHoliday[];
+    events: CalendarEvent[];
+  };
+  branding: {
+    primaryColor: string;
+    accentColor: string;
+    tagline: string;
+  };
+  permissions: {
+    teacher: {
+      createGrades: boolean;
+      recordAttendance: boolean;
+      createExercises: boolean;
+      gradeExercises: boolean;
+      createMissions: boolean;
+      completeMissions: boolean;
+      viewReports: boolean;
+      accessShop: boolean;
+      fulfillShop: boolean;
+    };
+    director: {
+      editSettings: boolean;
+      manageTeachers: boolean;
+      manageRewards: boolean;
+    };
+    student: {
+      redeemShop: boolean;
+      requestMission: boolean;
+    };
+    parent: {
+      viewChildData: boolean;
+    };
   };
 };
 
@@ -91,6 +141,50 @@ export const DEFAULT_SCHOOL_SETTINGS: SchoolSettings = {
   shop: {
     teachersCanFulfill: true,
     requireStock: false,
+  },
+  calendar: {
+    yearStart: "2026-02-01",
+    yearEnd: "2026-12-15",
+    classStartTime: "07:30",
+    classEndTime: "12:00",
+    schoolDays: [1, 2, 3, 4, 5],
+    holidays: [
+      { date: "2026-04-21", label: "Tiradentes" },
+      { date: "2026-09-07", label: "Independência" },
+    ],
+    events: [
+      { date: "2026-03-15", label: "Reunião de pais", kind: "meeting" },
+    ],
+  },
+  branding: {
+    primaryColor: "#4f46e5",
+    accentColor: "#f59e0b",
+    tagline: "Aprender, evoluir, conquistar",
+  },
+  permissions: {
+    teacher: {
+      createGrades: true,
+      recordAttendance: true,
+      createExercises: true,
+      gradeExercises: true,
+      createMissions: true,
+      completeMissions: true,
+      viewReports: true,
+      accessShop: true,
+      fulfillShop: true,
+    },
+    director: {
+      editSettings: true,
+      manageTeachers: true,
+      manageRewards: true,
+    },
+    student: {
+      redeemShop: true,
+      requestMission: true,
+    },
+    parent: {
+      viewChildData: true,
+    },
   },
 };
 

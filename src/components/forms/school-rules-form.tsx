@@ -37,7 +37,9 @@ function Toggle({
 
 export function SchoolRulesForm({ initial }: { initial: SchoolSettings }) {
   const [settings, setSettings] = useState<SchoolSettings>(initial);
-  const [tab, setTab] = useState<"xp" | "academic" | "notify" | "exercises" | "shop">("xp");
+  const [tab, setTab] = useState<
+    "xp" | "academic" | "notify" | "exercises" | "shop" | "calendar" | "branding" | "permissions"
+  >("xp");
 
   const [state, formAction, pending] = useActionState(
     async (_prev: { error?: string; success?: boolean } | null, formData: FormData) => {
@@ -50,9 +52,22 @@ export function SchoolRulesForm({ initial }: { initial: SchoolSettings }) {
   const tabs = [
     { id: "xp" as const, label: "XP e missões" },
     { id: "academic" as const, label: "Acadêmico" },
+    { id: "calendar" as const, label: "Calendário" },
+    { id: "branding" as const, label: "Visual" },
+    { id: "permissions" as const, label: "Permissões" },
     { id: "notify" as const, label: "Notificações" },
     { id: "exercises" as const, label: "Exercícios" },
     { id: "shop" as const, label: "Loja" },
+  ];
+
+  const weekdayOptions = [
+    { v: 0, l: "Dom" },
+    { v: 1, l: "Seg" },
+    { v: 2, l: "Ter" },
+    { v: 3, l: "Qua" },
+    { v: 4, l: "Qui" },
+    { v: 5, l: "Sex" },
+    { v: 6, l: "Sáb" },
   ];
 
   return (
@@ -73,7 +88,9 @@ export function SchoolRulesForm({ initial }: { initial: SchoolSettings }) {
               aria-selected={tab === t.id}
               onClick={() => setTab(t.id)}
               className={`rounded-full px-3 py-1.5 text-sm font-medium ${
-                tab === t.id ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                tab === t.id
+                  ? "bg-[color:var(--school-primary)] text-white"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
               }`}
             >
               {t.label}
@@ -454,6 +471,338 @@ export function SchoolRulesForm({ initial }: { initial: SchoolSettings }) {
                   />
                 </div>
               ))}
+            </div>
+          )}
+
+          {tab === "calendar" && (
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="yearStart">Início do ano letivo</Label>
+                  <Input
+                    id="yearStart"
+                    type="date"
+                    value={settings.calendar.yearStart.slice(0, 10)}
+                    onChange={(e) =>
+                      setSettings((s) => ({
+                        ...s,
+                        calendar: { ...s.calendar, yearStart: e.target.value },
+                      }))
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="yearEnd">Fim do ano letivo</Label>
+                  <Input
+                    id="yearEnd"
+                    type="date"
+                    value={settings.calendar.yearEnd.slice(0, 10)}
+                    onChange={(e) =>
+                      setSettings((s) => ({
+                        ...s,
+                        calendar: { ...s.calendar, yearEnd: e.target.value },
+                      }))
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="classStart">Início das aulas</Label>
+                  <Input
+                    id="classStart"
+                    type="time"
+                    value={settings.calendar.classStartTime}
+                    onChange={(e) =>
+                      setSettings((s) => ({
+                        ...s,
+                        calendar: { ...s.calendar, classStartTime: e.target.value },
+                      }))
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="classEnd">Fim das aulas</Label>
+                  <Input
+                    id="classEnd"
+                    type="time"
+                    value={settings.calendar.classEndTime}
+                    onChange={(e) =>
+                      setSettings((s) => ({
+                        ...s,
+                        calendar: { ...s.calendar, classEndTime: e.target.value },
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <div>
+                <p className="mb-2 text-sm font-medium text-slate-700">Dias com aula</p>
+                <div className="flex flex-wrap gap-2">
+                  {weekdayOptions.map((d) => (
+                    <label key={d.v} className="flex items-center gap-1 rounded-lg border px-3 py-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={settings.calendar.schoolDays.includes(d.v)}
+                        onChange={(e) =>
+                          setSettings((s) => {
+                            const days = e.target.checked
+                              ? [...s.calendar.schoolDays, d.v]
+                              : s.calendar.schoolDays.filter((x) => x !== d.v);
+                            return { ...s, calendar: { ...s.calendar, schoolDays: days } };
+                          })
+                        }
+                      />
+                      {d.l}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="holidays">Feriados (data|nome, um por linha)</Label>
+                <Textarea
+                  id="holidays"
+                  rows={4}
+                  value={settings.calendar.holidays
+                    .map((h) => `${h.date.slice(0, 10)}|${h.label}`)
+                    .join("\n")}
+                  onChange={(e) =>
+                    setSettings((s) => ({
+                      ...s,
+                      calendar: {
+                        ...s.calendar,
+                        holidays: e.target.value
+                          .split("\n")
+                          .map((line) => line.trim())
+                          .filter(Boolean)
+                          .map((line) => {
+                            const [date, ...rest] = line.split("|");
+                            return { date: date.trim(), label: rest.join("|").trim() || "Feriado" };
+                          }),
+                      },
+                    }))
+                  }
+                  placeholder="2026-04-21|Tiradentes"
+                />
+              </div>
+              <div>
+                <Label htmlFor="events">Eventos (data|nome|tipo opcional)</Label>
+                <Textarea
+                  id="events"
+                  rows={4}
+                  value={settings.calendar.events
+                    .map((ev) =>
+                      ev.kind ? `${ev.date.slice(0, 10)}|${ev.label}|${ev.kind}` : `${ev.date.slice(0, 10)}|${ev.label}`
+                    )
+                    .join("\n")}
+                  onChange={(e) =>
+                    setSettings((s) => ({
+                      ...s,
+                      calendar: {
+                        ...s.calendar,
+                        events: e.target.value
+                          .split("\n")
+                          .map((line) => line.trim())
+                          .filter(Boolean)
+                          .map((line) => {
+                            const [date, label, kind] = line.split("|");
+                            return {
+                              date: date.trim(),
+                              label: (label ?? "").trim(),
+                              kind: (kind?.trim() as "exam" | "event" | "meeting") || "event",
+                            };
+                          }),
+                      },
+                    }))
+                  }
+                  placeholder="2026-06-10|Prova final|exam"
+                />
+              </div>
+            </div>
+          )}
+
+          {tab === "branding" && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="primaryColor">Cor principal</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="primaryColor"
+                    type="color"
+                    className="h-11 w-16 shrink-0"
+                    value={settings.branding.primaryColor}
+                    onChange={(e) =>
+                      setSettings((s) => ({
+                        ...s,
+                        branding: { ...s.branding, primaryColor: e.target.value },
+                      }))
+                    }
+                  />
+                  <Input
+                    value={settings.branding.primaryColor}
+                    onChange={(e) =>
+                      setSettings((s) => ({
+                        ...s,
+                        branding: { ...s.branding, primaryColor: e.target.value },
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="accentColor">Cor de destaque</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="accentColor"
+                    type="color"
+                    className="h-11 w-16 shrink-0"
+                    value={settings.branding.accentColor}
+                    onChange={(e) =>
+                      setSettings((s) => ({
+                        ...s,
+                        branding: { ...s.branding, accentColor: e.target.value },
+                      }))
+                    }
+                  />
+                  <Input
+                    value={settings.branding.accentColor}
+                    onChange={(e) =>
+                      setSettings((s) => ({
+                        ...s,
+                        branding: { ...s.branding, accentColor: e.target.value },
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="tagline">Frase da escola</Label>
+                <Input
+                  id="tagline"
+                  value={settings.branding.tagline}
+                  onChange={(e) =>
+                    setSettings((s) => ({
+                      ...s,
+                      branding: { ...s.branding, tagline: e.target.value },
+                    }))
+                  }
+                  placeholder="Ex.: Aprender, evoluir, conquistar"
+                />
+              </div>
+              <div
+                className="sm:col-span-2 rounded-xl p-4 text-white"
+                style={{ backgroundColor: settings.branding.primaryColor }}
+              >
+                <p className="font-bold">Prévia do tema</p>
+                <p className="text-sm opacity-90">{settings.branding.tagline}</p>
+              </div>
+            </div>
+          )}
+
+          {tab === "permissions" && (
+            <div className="space-y-6">
+              <div>
+                <p className="mb-2 font-semibold text-slate-800">Professores</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {(
+                    [
+                      ["createGrades", "Lançar notas"],
+                      ["recordAttendance", "Registrar frequência"],
+                      ["createExercises", "Criar exercícios"],
+                      ["gradeExercises", "Corrigir exercícios"],
+                      ["createMissions", "Criar missões"],
+                      ["completeMissions", "Concluir missões"],
+                      ["viewReports", "Ver relatórios"],
+                      ["accessShop", "Ver loja"],
+                      ["fulfillShop", "Entregar prêmios"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <Toggle
+                      key={key}
+                      checked={settings.permissions.teacher[key]}
+                      onChange={(v) =>
+                        setSettings((s) => ({
+                          ...s,
+                          permissions: {
+                            ...s.permissions,
+                            teacher: { ...s.permissions.teacher, [key]: v },
+                          },
+                        }))
+                      }
+                      label={label}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="mb-2 font-semibold text-slate-800">Diretoria</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {(
+                    [
+                      ["editSettings", "Editar configurações"],
+                      ["manageTeachers", "Gerenciar professores"],
+                      ["manageRewards", "Gerenciar loja/prêmios"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <Toggle
+                      key={key}
+                      checked={settings.permissions.director[key]}
+                      onChange={(v) =>
+                        setSettings((s) => ({
+                          ...s,
+                          permissions: {
+                            ...s.permissions,
+                            director: { ...s.permissions.director, [key]: v },
+                          },
+                        }))
+                      }
+                      label={label}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="mb-2 font-semibold text-slate-800">Alunos e responsáveis</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Toggle
+                    checked={settings.permissions.student.redeemShop}
+                    onChange={(v) =>
+                      setSettings((s) => ({
+                        ...s,
+                        permissions: {
+                          ...s.permissions,
+                          student: { ...s.permissions.student, redeemShop: v },
+                        },
+                      }))
+                    }
+                    label="Aluno pode resgatar na loja"
+                  />
+                  <Toggle
+                    checked={settings.permissions.student.requestMission}
+                    onChange={(v) =>
+                      setSettings((s) => ({
+                        ...s,
+                        permissions: {
+                          ...s.permissions,
+                          student: { ...s.permissions.student, requestMission: v },
+                        },
+                      }))
+                    }
+                    label="Aluno pode pedir confirmação de missão"
+                  />
+                  <Toggle
+                    checked={settings.permissions.parent.viewChildData}
+                    onChange={(v) =>
+                      setSettings((s) => ({
+                        ...s,
+                        permissions: {
+                          ...s.permissions,
+                          parent: { ...s.permissions.parent, viewChildData: v },
+                        },
+                      }))
+                    }
+                    label="Responsável vê dados dos filhos"
+                  />
+                </div>
+              </div>
             </div>
           )}
 

@@ -9,6 +9,11 @@
   --card: #ffffff;
   --accent: #eef2ff;
   --focus-ring: #4f46e5;
+  --school-primary: #4f46e5;
+  --school-primary-hover: #4338ca;
+  --school-primary-soft: #eef2ff;
+  --school-primary-ring: #c7d2fe;
+  --school-accent: #f59e0b;
   --touch-min: 44px;
   --page-padding: clamp(0.75rem, 2vw, 1.5rem);
   --content-max: 90rem;

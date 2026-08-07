@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   BookOpen,
+  CalendarDays,
   ClipboardList,
   GraduationCap,
   LayoutDashboard,
@@ -13,7 +14,6 @@ import {
   Target,
   User,
   Users,
-  Menu,
   X,
   UserCog,
   Gift,
@@ -24,41 +24,93 @@ import {
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { ROLE_LABELS, type UserRole } from "@/lib/constants";
+import {
+  canAccessNav,
+  canSeeExerciciosStaff,
+  canSeeGamificacao,
+  type NavPermission,
+} from "@/lib/permissions";
+import type { SchoolSettings } from "@/lib/school-settings";
 import { logoutAction } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 
-const allNavItems = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  roles: UserRole[];
+  permission?: NavPermission;
+  customCheck?: (role: UserRole, perms: SchoolSettings["permissions"]) => boolean;
+};
+
+const allNavItems: NavItem[] = [
   { href: "/dashboard", label: "Visão Geral", icon: LayoutDashboard, roles: ["admin", "director"] },
   { href: "/dashboard/professor", label: "Minhas Turmas", icon: LayoutDashboard, roles: ["teacher"] },
+  { href: "/dashboard/aluno", label: "Meu Perfil", icon: User, roles: ["student"] },
+  { href: "/dashboard/responsavel", label: "Meus Filhos", icon: Heart, roles: ["parent"] },
+  { href: "/dashboard/calendario", label: "Calendário", icon: CalendarDays, roles: ["admin", "director", "teacher", "student", "parent"] },
   { href: "/dashboard/alunos", label: "Alunos", icon: Users, roles: ["admin", "director", "teacher"] },
   { href: "/dashboard/turmas", label: "Turmas", icon: GraduationCap, roles: ["admin", "director", "teacher"] },
-  { href: "/dashboard/professores", label: "Professores", icon: UserCog, roles: ["admin", "director"] },
-  { href: "/dashboard/notas", label: "Notas", icon: BookOpen, roles: ["admin", "director", "teacher"] },
-  { href: "/dashboard/frequencia", label: "Frequência", icon: ClipboardList, roles: ["admin", "director", "teacher"] },
-  { href: "/dashboard/exercicios", label: "Exercícios", icon: PenLine, roles: ["admin", "director", "teacher", "student"] },
-  { href: "/dashboard/gamificacao", label: "Gamificação", icon: Target, roles: ["admin", "director", "teacher"] },
-  { href: "/dashboard/loja", label: "Loja de Recompensas", icon: Gift, roles: ["admin", "director", "teacher", "student"] },
+  { href: "/dashboard/professores", label: "Professores", icon: UserCog, roles: ["admin", "director"], permission: "director.manageTeachers" },
+  { href: "/dashboard/notas", label: "Notas", icon: BookOpen, roles: ["admin", "director", "teacher"], permission: "teacher.createGrades" },
+  { href: "/dashboard/frequencia", label: "Frequência", icon: ClipboardList, roles: ["admin", "director", "teacher"], permission: "teacher.recordAttendance" },
+  {
+    href: "/dashboard/exercicios",
+    label: "Exercícios",
+    icon: PenLine,
+    roles: ["admin", "director", "teacher", "student"],
+    customCheck: (role, perms) => role !== "teacher" || canSeeExerciciosStaff(role, perms),
+  },
+  {
+    href: "/dashboard/gamificacao",
+    label: "Gamificação",
+    icon: Target,
+    roles: ["admin", "director", "teacher"],
+    customCheck: (role, perms) => role !== "teacher" || canSeeGamificacao(role, perms),
+  },
+  {
+    href: "/dashboard/loja",
+    label: "Loja de Recompensas",
+    icon: Gift,
+    roles: ["admin", "director", "teacher", "student"],
+    permission: "teacher.accessShop",
+  },
   { href: "/dashboard/responsaveis", label: "Responsáveis", icon: Heart, roles: ["admin", "director"] },
-  { href: "/dashboard/relatorios", label: "Relatórios", icon: BarChart3, roles: ["admin", "director", "teacher"] },
-  { href: "/dashboard/aluno", label: "Meu Perfil", icon: User, roles: ["student"] },
+  { href: "/dashboard/relatorios", label: "Relatórios", icon: BarChart3, roles: ["admin", "director", "teacher"], permission: "teacher.viewReports" },
   { href: "/dashboard/busca", label: "Busca", icon: BookOpen, roles: ["student", "parent"] },
   { href: "/dashboard/notificacoes", label: "Notificações", icon: Bell, roles: ["admin", "director", "teacher", "student", "parent"] },
-  { href: "/dashboard/responsavel", label: "Meus Filhos", icon: Heart, roles: ["parent"] },
-  { href: "/dashboard/configuracoes", label: "Configurações", icon: Settings, roles: ["admin", "director"] },
+  { href: "/dashboard/configuracoes", label: "Configurações", icon: Settings, roles: ["admin", "director"], permission: "director.editSettings" },
 ];
+
+function filterNav(role: UserRole, permissions: SchoolSettings["permissions"]) {
+  return allNavItems.filter((item) => {
+    if (!item.roles.includes(role)) return false;
+    if (item.customCheck && !item.customCheck(role, permissions)) return false;
+    if (role === "student" && item.href === "/dashboard/loja") return true;
+    if (item.permission && role === "teacher") {
+      return canAccessNav(role, permissions, item.permission);
+    }
+    if (item.permission && role === "director") {
+      return canAccessNav(role, permissions, item.permission);
+    }
+    return true;
+  });
+}
 
 function NavLinks({
   pathname,
   role,
+  permissions,
   kidFriendly,
   onNavigate,
 }: {
   pathname: string;
   role: UserRole;
+  permissions: SchoolSettings["permissions"];
   kidFriendly: boolean;
   onNavigate?: () => void;
 }) {
-  const items = allNavItems.filter((item) => item.roles.includes(role));
+  const items = filterNav(role, permissions);
 
   return (
     <nav aria-label="Menu principal" className="space-y-1 p-3 sm:p-4">
@@ -74,7 +126,7 @@ function NavLinks({
               "nav-link flex items-center gap-3 rounded-xl font-medium transition-colors",
               kidFriendly ? "min-h-12 px-4 py-3 text-base" : "min-h-11 px-3 py-2.5 text-sm",
               active
-                ? "bg-indigo-100 text-indigo-800 ring-2 ring-indigo-200"
+                ? "bg-[color:var(--school-primary-soft)] text-[color:var(--school-primary)] ring-2 ring-[color:var(--school-primary-ring)]"
                 : "text-slate-700 hover:bg-slate-100"
             )}
           >
@@ -93,6 +145,8 @@ export function Sidebar({
   schoolName,
   role,
   kidFriendly,
+  permissions,
+  tagline,
   mobileOpen,
   onMobileOpenChange,
 }: {
@@ -101,6 +155,8 @@ export function Sidebar({
   schoolName: string;
   role: UserRole;
   kidFriendly: boolean;
+  permissions: SchoolSettings["permissions"];
+  tagline?: string;
   mobileOpen: boolean;
   onMobileOpenChange: (open: boolean) => void;
 }) {
@@ -142,6 +198,8 @@ export function Sidebar({
               userName={userName}
               schoolName={schoolName}
               role={role}
+              permissions={permissions}
+              tagline={tagline}
               kidFriendly={kidFriendly}
               onNavigate={() => onMobileOpenChange(false)}
             />
@@ -158,6 +216,8 @@ export function Sidebar({
           userName={userName}
           schoolName={schoolName}
           role={role}
+          permissions={permissions}
+          tagline={tagline}
           kidFriendly={kidFriendly}
         />
       </aside>
@@ -170,6 +230,8 @@ function SidebarContent({
   userName,
   schoolName,
   role,
+  permissions,
+  tagline,
   kidFriendly,
   onNavigate,
 }: {
@@ -177,20 +239,31 @@ function SidebarContent({
   userName: string;
   schoolName: string;
   role: UserRole;
+  permissions: SchoolSettings["permissions"];
+  tagline?: string;
   kidFriendly: boolean;
   onNavigate?: () => void;
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-16 shrink-0 items-center gap-2 border-b border-slate-200 px-4 sm:px-6">
-        <Medal className="h-8 w-8 shrink-0 text-indigo-600" aria-hidden="true" />
+        <Medal className="h-8 w-8 shrink-0 text-[color:var(--school-primary)]" aria-hidden="true" />
         <div className="min-w-0">
           <p className="truncate text-lg font-bold text-slate-900">EduHub</p>
           <p className="truncate text-sm text-slate-600">{ROLE_LABELS[role]}</p>
         </div>
       </div>
+      {tagline && (
+        <p className="border-b border-slate-100 px-4 py-2 text-xs text-slate-500">{tagline}</p>
+      )}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <NavLinks pathname={pathname} role={role} kidFriendly={kidFriendly} onNavigate={onNavigate} />
+        <NavLinks
+          pathname={pathname}
+          role={role}
+          permissions={permissions}
+          kidFriendly={kidFriendly}
+          onNavigate={onNavigate}
+        />
       </div>
       <div className="shrink-0 border-t border-slate-200 p-4">
         <p className="truncate text-sm font-semibold text-slate-900">{userName}</p>

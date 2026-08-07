@@ -16,6 +16,7 @@ import {
 } from "@/components/exercises/exercise-status-badge";
 import { RequestMissionButton } from "@/components/forms/request-mission-button";
 import { TodayChecklist, type TodayItem } from "@/components/student/today-checklist";
+import { SchoolCalendarWidget } from "@/components/school/school-calendar-widget";
 import { formatDate } from "@/lib/utils";
 import { redirect } from "next/navigation";
 
@@ -133,6 +134,8 @@ export default async function AlunoPortalPage() {
       </PageHeader>
 
       <TodayChecklist items={todayItems} firstName={firstName} />
+
+      <SchoolCalendarWidget settings={settings} compact />
 
       <section aria-labelledby="stats-heading">
         <h2 id="stats-heading" className="sr-only">

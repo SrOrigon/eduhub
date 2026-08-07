@@ -35,6 +35,7 @@ export default async function ConfiguracoesPage() {
         <Badge variant="warning">
           Auto-correção {settings.exercises.autoGradeEnabled ? "ligada" : "desligada"}
         </Badge>
+        <Badge variant="default">{settings.branding.tagline ? "Tema personalizado" : "Tema padrão"}</Badge>
       </div>
 
       <SchoolSettingsForm school={school} />

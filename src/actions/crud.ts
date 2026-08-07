@@ -19,6 +19,7 @@ import {
   stringifySchoolSettings,
   type SchoolSettings,
 } from "@/lib/school-settings";
+import { hasPermission } from "@/lib/permissions";
 
 function revalidateAll() {
   [
@@ -93,6 +94,10 @@ export async function createGradeAction(formData: FormData) {
   if (!user.schoolId) return { error: "Escola não configurada." };
 
   const settings = await getSchoolSettings(user.schoolId);
+  if (user.role === "teacher" && !hasPermission(user.role, settings, "teacher.createGrades")) {
+    return { error: "Sem permissão para lançar notas." };
+  }
+
   const studentId = String(formData.get("studentId") ?? "");
   const subject = String(formData.get("subject") ?? "");
   const value = parseFloat(String(formData.get("value") ?? "0"));
@@ -153,6 +158,11 @@ export async function recordAttendanceAction(formData: FormData) {
   date.setHours(0, 0, 0, 0);
 
   if (!studentId || !classId) return { error: "Aluno e turma são obrigatórios." };
+
+  const settings = await getSchoolSettings(user.schoolId);
+  if (user.role === "teacher" && !hasPermission(user.role, settings, "teacher.recordAttendance")) {
+    return { error: "Sem permissão para registrar frequência." };
+  }
 
   const existing = await prisma.attendance.findUnique({
     where: { studentId_date: { studentId, date } },
@@ -227,6 +237,10 @@ export async function createMissionAction(formData: FormData) {
   const dueDateStr = String(formData.get("dueDate") ?? "");
 
   if (!title) return { error: "Título é obrigatório." };
+
+  if (user.role === "teacher" && !hasPermission(user.role, settings, "teacher.createMissions")) {
+    return { error: "Sem permissão para criar missões." };
+  }
 
   const mission = await prisma.mission.create({
     data: {
@@ -326,6 +340,11 @@ export async function completeMissionAction(formData: FormData) {
   });
   if (!student) return { error: "Aluno não encontrado." };
 
+  const settings = await getSchoolSettings(user.schoolId);
+  if (user.role === "teacher" && !hasPermission(user.role, settings, "teacher.completeMissions")) {
+    return { error: "Sem permissão para concluir missões." };
+  }
+
   try {
     const mission = await prisma.mission.findUnique({ where: { id: missionId } });
     await completeMission(studentId, missionId);
@@ -363,6 +382,11 @@ export async function bulkAttendanceAction(formData: FormData) {
   date.setHours(0, 0, 0, 0);
 
   if (!classId) return { error: "Selecione uma turma." };
+
+  const settings = await getSchoolSettings(user.schoolId);
+  if (user.role === "teacher" && !hasPermission(user.role, settings, "teacher.recordAttendance")) {
+    return { error: "Sem permissão para registrar frequência." };
+  }
 
   const students = await prisma.student.findMany({
     where: { classId, user: { schoolId: user.schoolId } },
@@ -427,6 +451,11 @@ export async function requestMissionCompletionAction(formData: FormData) {
     include: { classGroup: { select: { teacherId: true, name: true } } },
   });
   if (!student) return { error: "Perfil de aluno não encontrado." };
+
+  const settings = await getSchoolSettings(user.schoolId);
+  if (!hasPermission(user.role, settings, "student.requestMission")) {
+    return { error: "Pedido de confirmação de missão desativado." };
+  }
 
   const mission = await prisma.mission.findFirst({
     where: {
@@ -545,6 +574,11 @@ export async function updateSchoolSettingsAction(formData: FormData) {
   const user = await requireSession(["admin", "director"]);
   if (!user.schoolId) return { error: "Escola não configurada." };
 
+  const currentSettings = await getSchoolSettings(user.schoolId);
+  if (user.role === "director" && !hasPermission(user.role, currentSettings, "director.editSettings")) {
+    return { error: "Sem permissão para editar configurações." };
+  }
+
   const raw = String(formData.get("settingsJson") ?? "");
   if (!raw) return { error: "Configurações inválidas." };
 
@@ -587,6 +621,7 @@ export async function updateSchoolSettingsAction(formData: FormData) {
     "/dashboard/aluno",
     "/dashboard/professor",
     "/dashboard/loja",
+    "/dashboard/calendario",
   ].forEach((p) => revalidatePath(p));
 
   return { success: true };

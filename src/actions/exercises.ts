@@ -12,6 +12,7 @@ import {
 } from "@/lib/notifications";
 import { parseOptions, type ChoiceOption, type ExerciseKind, type QuestionType } from "@/lib/exercises";
 import { getSchoolSettings } from "@/lib/school-settings";
+import { hasPermission } from "@/lib/permissions";
 
 function revalidateExercises() {
   [
@@ -70,6 +71,11 @@ export async function createExerciseAction(formData: FormData) {
   if (!title) return { error: "Título é obrigatório." };
   if (!classId) return { error: "Selecione uma turma." };
   if (isNaN(maxPoints) || maxPoints <= 0) return { error: "Pontuação máxima inválida." };
+
+  const settings = await getSchoolSettings(user.schoolId);
+  if (user.role === "teacher" && !hasPermission(user.role, settings, "teacher.createExercises")) {
+    return { error: "Sem permissão para criar exercícios." };
+  }
 
   try {
     await assertTeacherCanManageClass(user.id, user.role, classId);
@@ -412,6 +418,11 @@ export async function gradeSubmissionAction(formData: FormData) {
     return { error: "Sem permissão para corrigir." };
   }
 
+  const settings = await getSchoolSettings(user.schoolId);
+  if (user.role === "teacher" && !hasPermission(user.role, settings, "teacher.gradeExercises")) {
+    return { error: "Sem permissão para corrigir exercícios." };
+  }
+
   let grades: Record<string, { points: number; isCorrect?: boolean }>;
   try {
     grades = JSON.parse(gradesJson);
@@ -421,7 +432,6 @@ export async function gradeSubmissionAction(formData: FormData) {
 
   let totalScore = 0;
   const maxScore = submission.exercise.questions.reduce((s, q) => s + q.points, 0);
-  const settings = await getSchoolSettings(user.schoolId);
   const maxGrade = settings.academic.maxGrade;
 
   await prisma.$transaction(async (tx) => {

@@ -5,6 +5,7 @@ import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { notifyStudent, notifyStudentParents } from "@/lib/notifications";
 import { getSchoolSettings } from "@/lib/school-settings";
+import { hasPermission } from "@/lib/permissions";
 
 function revalidateLoja() {
   ["/dashboard/loja", "/dashboard/aluno", "/dashboard/gamificacao", "/dashboard/notificacoes"].forEach((p) =>
@@ -15,6 +16,11 @@ function revalidateLoja() {
 export async function createRewardAction(formData: FormData) {
   const user = await requireSession(["admin", "director"]);
   if (!user.schoolId) return { error: "Escola não configurada." };
+
+  const settings = await getSchoolSettings(user.schoolId);
+  if (user.role === "director" && !hasPermission(user.role, settings, "director.manageRewards")) {
+    return { error: "Sem permissão para gerenciar prêmios." };
+  }
 
   const name = String(formData.get("name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
@@ -67,6 +73,10 @@ export async function redeemRewardAction(formData: FormData) {
     const st = await prisma.student.findFirst({ where: { userId: user.id } });
     if (!st) return { error: "Perfil de aluno não encontrado." };
     studentId = st.id;
+    const settings = await getSchoolSettings(user.schoolId);
+    if (!hasPermission(user.role, settings, "student.redeemShop")) {
+      return { error: "Resgates na loja estão desativados." };
+    }
   }
 
   if (!rewardId || !studentId) return { error: "Dados inválidos." };
@@ -133,8 +143,13 @@ export async function redeemRewardAction(formData: FormData) {
 export async function fulfillRedemptionAction(formData: FormData) {
   const user = await requireSession(["admin", "director", "teacher"]);
   const settings = await getSchoolSettings(user.schoolId);
-  if (user.role === "teacher" && !settings.shop.teachersCanFulfill) {
-    return { error: "Professores não podem marcar entrega nesta escola." };
+  if (user.role === "teacher") {
+    if (!hasPermission(user.role, settings, "teacher.fulfillShop")) {
+      return { error: "Sem permissão para entregar prêmios." };
+    }
+    if (!settings.shop.teachersCanFulfill) {
+      return { error: "Professores não podem marcar entrega nesta escola." };
+    }
   }
   const redemptionId = String(formData.get("redemptionId") ?? "");
   if (!redemptionId) return { error: "Resgate inválido." };
