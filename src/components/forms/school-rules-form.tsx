@@ -807,7 +807,15 @@ export function SchoolRulesForm({ initial }: { initial: SchoolSettings }) {
           )}
 
           {tab === "shop" && (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-4">
+              <p className="text-sm text-slate-600">
+                A loja usa apenas <strong>moedas</strong>. Gerencie categorias e itens em{" "}
+                <a href="/dashboard/loja" className="font-semibold text-indigo-600 hover:underline">
+                  Loja de Moedas
+                </a>{" "}
+                ou Gamificação. O XP fica reservado para nível e ranking.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
               <Toggle
                 checked={settings.shop.teachersCanFulfill}
                 onChange={(v) =>
@@ -829,6 +837,7 @@ export function SchoolRulesForm({ initial }: { initial: SchoolSettings }) {
                 label="Exigir estoque numérico para resgatar"
                 description="Itens sem estoque definido ficam bloqueados"
               />
+              </div>
             </div>
           )}
 

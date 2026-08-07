@@ -76,7 +76,7 @@ const allNavItems: NavItem[] = [
   },
   {
     href: "/dashboard/loja",
-    label: "Loja de Recompensas",
+    label: "Loja de Moedas",
     icon: Gift,
     roles: ["admin", "director", "teacher", "student"],
     permission: "teacher.accessShop",

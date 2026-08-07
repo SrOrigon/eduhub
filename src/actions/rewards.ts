@@ -24,15 +24,31 @@ export async function createRewardAction(formData: FormData) {
 
   const name = String(formData.get("name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
+  const categoryId = String(formData.get("categoryId") ?? "").trim() || null;
   const coinCost = parseInt(String(formData.get("coinCost") ?? "0"), 10);
   const stockStr = String(formData.get("stock") ?? "").trim();
   const stock = stockStr ? parseInt(stockStr, 10) : null;
 
   if (!name || coinCost <= 0) return { error: "Nome e custo em moedas são obrigatórios." };
 
+  const activeCategories = await prisma.rewardCategory.count({
+    where: { schoolId: user.schoolId, isActive: true },
+  });
+  if (activeCategories > 0 && !categoryId) {
+    return { error: "Selecione uma categoria para o item." };
+  }
+
+  if (categoryId) {
+    const cat = await prisma.rewardCategory.findFirst({
+      where: { id: categoryId, schoolId: user.schoolId, isActive: true },
+    });
+    if (!cat) return { error: "Categoria inválida ou inativa." };
+  }
+
   await prisma.reward.create({
     data: {
       schoolId: user.schoolId,
+      categoryId,
       name,
       description: description || null,
       coinCost,
@@ -41,6 +57,87 @@ export async function createRewardAction(formData: FormData) {
     },
   });
 
+  revalidateLoja();
+  return { success: true };
+}
+
+export async function updateRewardAction(formData: FormData) {
+  const user = await requireSession(["admin", "director"]);
+  if (!user.schoolId) return { error: "Escola não configurada." };
+
+  const settings = await getSchoolSettings(user.schoolId);
+  if (user.role === "director" && !hasPermission(user.role, settings, "director.manageRewards")) {
+    return { error: "Sem permissão para gerenciar prêmios." };
+  }
+
+  const rewardId = String(formData.get("rewardId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const categoryId = String(formData.get("categoryId") ?? "").trim() || null;
+  const coinCost = parseInt(String(formData.get("coinCost") ?? "0"), 10);
+  const stockStr = String(formData.get("stock") ?? "").trim();
+  const stock = stockStr ? parseInt(stockStr, 10) : null;
+
+  if (!rewardId || !name || coinCost <= 0) {
+    return { error: "Nome e custo em moedas são obrigatórios." };
+  }
+
+  const reward = await prisma.reward.findFirst({
+    where: { id: rewardId, schoolId: user.schoolId },
+  });
+  if (!reward) return { error: "Item não encontrado." };
+
+  if (categoryId) {
+    const cat = await prisma.rewardCategory.findFirst({
+      where: { id: categoryId, schoolId: user.schoolId },
+    });
+    if (!cat) return { error: "Categoria inválida." };
+  }
+
+  await prisma.reward.update({
+    where: { id: rewardId },
+    data: {
+      categoryId,
+      name,
+      description: description || null,
+      coinCost,
+      stock: stock !== null && stock >= 0 ? stock : null,
+    },
+  });
+
+  revalidateLoja();
+  return { success: true };
+}
+
+export async function deleteRewardAction(formData: FormData) {
+  const user = await requireSession(["admin", "director"]);
+  if (!user.schoolId) return { error: "Escola não configurada." };
+
+  const settings = await getSchoolSettings(user.schoolId);
+  if (user.role === "director" && !hasPermission(user.role, settings, "director.manageRewards")) {
+    return { error: "Sem permissão para gerenciar prêmios." };
+  }
+
+  const rewardId = String(formData.get("rewardId") ?? "");
+  const reward = await prisma.reward.findFirst({
+    where: { id: rewardId, schoolId: user.schoolId },
+    include: { _count: { select: { redemptions: true } } },
+  });
+  if (!reward) return { error: "Item não encontrado." };
+
+  if (reward._count.redemptions > 0) {
+    await prisma.reward.update({
+      where: { id: rewardId },
+      data: { isActive: false },
+    });
+    revalidateLoja();
+    return {
+      success: true,
+      message: "Item desativado (já possui resgates e não pode ser excluído).",
+    };
+  }
+
+  await prisma.reward.delete({ where: { id: rewardId } });
   revalidateLoja();
   return { success: true };
 }
@@ -193,8 +290,11 @@ export async function getRewardsForSchool(schoolId: string | null) {
   if (!schoolId) return [];
   return prisma.reward.findMany({
     where: { schoolId },
-    include: { _count: { select: { redemptions: true } } },
-    orderBy: { coinCost: "asc" },
+    include: {
+      category: { select: { id: true, name: true, isActive: true } },
+      _count: { select: { redemptions: true } },
+    },
+    orderBy: [{ category: { sortOrder: "asc" } }, { coinCost: "asc" }],
   });
 }
 

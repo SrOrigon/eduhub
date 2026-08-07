@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Building2, GraduationCap, UserRound } from "lucide-react";
+import { Building2, GraduationCap, Heart, UserRound } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Medal } from "lucide-react";
 
@@ -27,15 +27,24 @@ const portals = [
     registerHref: "/registro/aluno",
     icon: UserRound,
     title: "Aluno",
-    description: "Veja tarefas, entregue exercícios e acompanhe XP e missões.",
+    description: "Exercícios escolares, missões e tarefas de casa da família.",
     color: "border-amber-200 bg-amber-50/50 hover:border-amber-400",
     iconColor: "text-amber-600 bg-amber-100",
+  },
+  {
+    href: "/login/responsavel",
+    registerHref: "/registro/responsavel",
+    icon: Heart,
+    title: "Responsável",
+    description: "Veja desempenho dos filhos e crie tarefas de casa com recompensas.",
+    color: "border-rose-200 bg-rose-50/50 hover:border-rose-400",
+    iconColor: "text-rose-600 bg-rose-100",
   },
 ];
 
 export function AuthPortalPicker({ mode }: { mode: "login" | "register" }) {
   return (
-    <div className="w-full max-w-3xl space-y-6">
+    <div className="w-full max-w-4xl space-y-6">
       <div className="text-center">
         <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-indigo-100">
           <Medal className="h-7 w-7 text-indigo-600" aria-hidden="true" />
@@ -46,7 +55,7 @@ export function AuthPortalPicker({ mode }: { mode: "login" | "register" }) {
         <p className="mt-2 text-slate-600">Escolha seu tipo de acesso</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {portals.map((p) => {
           const Icon = p.icon;
           const href = mode === "login" ? p.href : p.registerHref;

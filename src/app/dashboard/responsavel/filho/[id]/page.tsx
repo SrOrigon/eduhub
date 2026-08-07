@@ -15,8 +15,11 @@ import { PageHeader } from "@/components/layout/page-header";
 import { formatDate } from "@/lib/utils";
 import { ATTENDANCE_LABELS, OCCURRENCE_LABELS, type AttendanceStatus, type OccurrenceKind } from "@/lib/constants";
 import { getOccurrencesForStudent } from "@/actions/diary";
+import { getHomeTasksForStudent } from "@/actions/home-tasks";
+import { CreateHomeTaskForm } from "@/components/forms/create-home-task-form";
+import { ParentHomeTasksPanel } from "@/components/home-tasks/parent-home-tasks-panel";
 import { notFound, redirect } from "next/navigation";
-import { BookOpen, FileText, Gift, Medal, Target, PenLine } from "lucide-react";
+import { BookOpen, FileText, Gift, Medal, Target, PenLine, Home } from "lucide-react";
 
 function attendanceLabel(status: string) {
   return ATTENDANCE_LABELS[status as AttendanceStatus] ?? status;
@@ -24,7 +27,7 @@ function attendanceLabel(status: string) {
 
 export default async function FilhoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/login/responsavel");
   if (user.role !== "parent") redirect("/dashboard");
 
   const { id } = await params;
@@ -44,7 +47,10 @@ export default async function FilhoDetailPage({ params }: { params: Promise<{ id
     return { ...ex, sub, status };
   });
   const pendingExercises = exerciseItems.filter((e) => e.status === "pending").length;
-  const occurrences = await getOccurrencesForStudent(student.id);
+  const [occurrences, homeTasks] = await Promise.all([
+    getOccurrencesForStudent(student.id),
+    getHomeTasksForStudent(student.id),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -60,6 +66,7 @@ export default async function FilhoDetailPage({ params }: { params: Promise<{ id
             Boletim completo
           </Button>
         </Link>
+        <CreateHomeTaskForm children={[{ id: student.id, name: student.user.fullName }]} />
       </PageHeader>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -80,6 +87,23 @@ export default async function FilhoDetailPage({ params }: { params: Promise<{ id
           <CardContent><p className="text-3xl font-bold">{student.studentBadges.length}</p></CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Home className="h-5 w-5 text-violet-600" aria-hidden="true" />
+            Tarefas de casa
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ParentHomeTasksPanel
+            tasks={homeTasks.map((t) => ({
+              ...t,
+              student: { user: { fullName: student.user.fullName } },
+            }))}
+          />
+        </CardContent>
+      </Card>
 
       {exerciseItems.length > 0 && (
         <Card className={pendingExercises > 0 ? "border-amber-200" : ""}>

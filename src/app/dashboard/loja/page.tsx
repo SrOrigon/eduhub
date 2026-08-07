@@ -1,12 +1,13 @@
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getRewardsForSchool, getStudentRedemptions } from "@/actions/rewards";
+import { getRewardCategoriesForSchool } from "@/actions/reward-categories";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CreateRewardForm } from "@/components/forms/create-reward-form";
+import { InstitutionShopManager } from "@/components/shop/institution-shop-manager";
+import { StudentShopByCategory } from "@/components/shop/student-shop-by-category";
 import { PageHeader } from "@/components/layout/page-header";
-import { RedeemRewardButton } from "@/components/forms/redeem-reward-button";
-import { ToggleRewardButton } from "@/components/forms/toggle-reward-button";
 import { FulfillRedemptionButton } from "@/components/forms/fulfill-redemption-button";
 import { redirect } from "next/navigation";
 import { formatDate } from "@/lib/utils";
@@ -18,6 +19,7 @@ export default async function LojaPage() {
   if (!user) redirect("/login");
 
   const isAdmin = user.role === "admin" || user.role === "director";
+  const canManageShop = isAdmin;
   const settings = await getSchoolSettings(user.schoolId);
   const isStaff =
     isAdmin || (user.role === "teacher" && settings.shop.teachersCanFulfill);
@@ -30,7 +32,17 @@ export default async function LojaPage() {
     if (!student) redirect("/dashboard/aluno");
   }
 
-  const rewards = await getRewardsForSchool(user.schoolId);
+  const [rewards, categories] = await Promise.all([
+    getRewardsForSchool(user.schoolId),
+    getRewardCategoriesForSchool(user.schoolId),
+  ]);
+
+  const categoryOptions = categories.map((c) => ({
+    id: c.id,
+    name: c.name,
+    isActive: c.isActive,
+  }));
+
   const redemptions = student
     ? await getStudentRedemptions(student.id)
     : isStaff
@@ -52,17 +64,25 @@ export default async function LojaPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Loja de Recompensas"
+        title="Loja de Moedas"
         description={
           isStudent
             ? `Você tem ${student?.coins ?? 0} moedas. Escolha um prêmio!`
-            : pendingCount > 0
-              ? `${pendingCount} resgate(s) aguardando entrega`
-              : "Gerencie prêmios e acompanhe resgates"
+            : canManageShop
+              ? "Defina categorias, cadastre prêmios e acompanhe resgates"
+              : pendingCount > 0
+                ? `${pendingCount} resgate(s) aguardando entrega`
+                : "Prêmios disponíveis para resgate com moedas"
         }
       >
-        {isAdmin && <CreateRewardForm />}
+        {canManageShop && !isStudent && (
+          <CreateRewardForm categories={categoryOptions} />
+        )}
       </PageHeader>
+
+      {canManageShop && (
+        <InstitutionShopManager categories={categories} rewards={rewards} compact />
+      )}
 
       {isStudent && student && (
         <Card className="kid-card border-amber-300 bg-amber-50">
@@ -75,68 +95,31 @@ export default async function LojaPage() {
         </Card>
       )}
 
-      <section aria-labelledby="rewards-heading">
-        <h2 id="rewards-heading" className="sr-only">
-          Prêmios disponíveis
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {rewards.map((reward) => {
-            const outOfStock = reward.stock !== null && reward.stock <= 0;
-            const canAfford = student ? student.coins >= reward.coinCost : false;
+      {!canManageShop && (
+        <section aria-labelledby="rewards-heading">
+          <h2 id="rewards-heading" className="sr-only">
+            Prêmios por categoria
+          </h2>
+          <StudentShopByCategory
+            rewards={rewards}
+            categories={categories}
+            student={student}
+            role={user.role}
+            preview={!isStudent}
+          />
+        </section>
+      )}
 
-            return (
-              <Card key={reward.id} className={`${kidFriendly ? "kid-card" : ""} ${!reward.isActive ? "opacity-60" : ""}`}>
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <CardTitle className={kidFriendly ? "text-xl" : "text-base"}>{reward.name}</CardTitle>
-                      <CardDescription className={kidFriendly ? "text-base" : undefined}>
-                        {reward.description}
-                      </CardDescription>
-                    </div>
-                    {!reward.isActive && <Badge variant="secondary">Inativa</Badge>}
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="warning" className={kidFriendly ? "text-base px-3 py-1" : undefined}>
-                      {reward.coinCost} moedas
-                    </Badge>
-                    {reward.stock !== null && (
-                      <Badge variant={outOfStock ? "danger" : "secondary"}>
-                        {outOfStock ? "Esgotado" : `${reward.stock} disponíveis`}
-                      </Badge>
-                    )}
-                    {isAdmin && (
-                      <Badge variant="default">{reward._count.redemptions} resgates</Badge>
-                    )}
-                  </div>
-
-                  {isStudent && student && reward.isActive && (
-                    <RedeemRewardButton
-                      rewardId={reward.id}
-                      studentId={student.id}
-                      coinCost={reward.coinCost}
-                      canAfford={canAfford}
-                      outOfStock={outOfStock}
-                      rewardName={reward.name}
-                    />
-                  )}
-
-                  {isAdmin && <ToggleRewardButton rewardId={reward.id} isActive={reward.isActive} />}
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      </section>
-
-      {rewards.length === 0 && (
-        <Card className="kid-card">
-          <CardContent className="py-10 text-center text-lg text-slate-600">
-            Nenhuma recompensa cadastrada. {isAdmin && 'Clique em "+ Nova recompensa".'}
-          </CardContent>
-        </Card>
+      {canManageShop && rewards.some((r) => r.isActive) && (
+        <section>
+          <h2 className="mb-4 text-lg font-semibold text-slate-800">Vitrine do aluno (prévia)</h2>
+          <StudentShopByCategory
+            rewards={rewards}
+            categories={categories}
+            role={user.role}
+            preview
+          />
+        </section>
       )}
 
       <Card className={kidFriendly ? "kid-card" : ""}>

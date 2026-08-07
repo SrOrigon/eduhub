@@ -50,8 +50,15 @@ export async function getTodayAgendaForStudent(studentId: string, classId: strin
     take: 10,
   });
 
-  const dayStatus = getTodaySchoolStatus(settings);
-  const events = getUpcomingEvents(settings, 3);
+  const [dayStatus, events, pendingHomeTasks] = await Promise.all([
+    Promise.resolve(getTodaySchoolStatus(settings)),
+    Promise.resolve(getUpcomingEvents(settings, 3)),
+    prisma.homeTask.findMany({
+      where: { studentId, status: "pending" },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    }),
+  ]);
 
   const submissionMap = new Map(student.exerciseSubmissions.map((s) => [s.exerciseId, s.status]));
   const completedMissions = new Set(
@@ -59,6 +66,18 @@ export async function getTodayAgendaForStudent(studentId: string, classId: strin
   );
 
   const items: TodayItem[] = [];
+
+  for (const ht of pendingHomeTasks) {
+    items.push({
+      id: `home-${ht.id}`,
+      title: ht.title,
+      subtitle: ht.description ?? "Tarefa de casa da família",
+      href: "/dashboard/aluno#tarefas-casa",
+      done: false,
+      cta: "Concluir",
+      badge: `+${ht.xpReward} XP`,
+    });
+  }
 
   for (const ex of exercises) {
     const status = submissionMap.get(ex.id);

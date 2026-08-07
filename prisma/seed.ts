@@ -11,6 +11,8 @@ async function main() {
   await prisma.exerciseQuestion.deleteMany();
   await prisma.exercise.deleteMany();
   await prisma.rewardRedemption.deleteMany();
+  await prisma.reward.deleteMany();
+  await prisma.rewardCategory.deleteMany();
   await prisma.parentStudent.deleteMany();
   await prisma.xpTransaction.deleteMany();
   await prisma.studentBadge.deleteMany();
@@ -20,7 +22,6 @@ async function main() {
   await prisma.student.deleteMany();
   await prisma.mission.deleteMany();
   await prisma.badge.deleteMany();
-  await prisma.reward.deleteMany();
   await prisma.classGroup.deleteMany();
   await prisma.session.deleteMany();
   await prisma.user.deleteMany();

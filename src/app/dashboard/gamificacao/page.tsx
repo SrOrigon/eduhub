@@ -10,6 +10,9 @@ import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getClasses } from "@/lib/queries";
 import { getSchoolSettings } from "@/lib/school-settings";
+import { getRewardsForSchool } from "@/actions/rewards";
+import { getRewardCategoriesForSchool } from "@/actions/reward-categories";
+import { InstitutionShopManager } from "@/components/shop/institution-shop-manager";
 import { redirect } from "next/navigation";
 
 const iconMap = { clock: Clock, star: Star, target: Target };
@@ -30,6 +33,10 @@ export default async function GamificacaoPage() {
 
   const classOptions = classes.map((c) => ({ id: c.id, name: c.name }));
   const isStaff = user.role === "director" || user.role === "teacher" || user.role === "admin";
+  const canManageShop = user.role === "director" || user.role === "admin";
+
+  const rewards = canManageShop ? await getRewardsForSchool(user.schoolId) : [];
+  const shopCategories = canManageShop ? await getRewardCategoriesForSchool(user.schoolId) : [];
 
   function studentsForMission(classId: string | null) {
     const pool = classId ? students.filter((s) => s.classId === classId) : students;
@@ -51,6 +58,10 @@ export default async function GamificacaoPage() {
           />
         )}
       </PageHeader>
+
+      {canManageShop && (
+        <InstitutionShopManager categories={shopCategories} rewards={rewards} />
+      )}
 
       {badges.length === 0 ? (
         <EmptyState

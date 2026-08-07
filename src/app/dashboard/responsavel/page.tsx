@@ -1,12 +1,15 @@
 import Link from "next/link";
-import { Users, BookOpen } from "lucide-react";
+import { Users, BookOpen, Home } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
 import { getParentChildren } from "@/actions/parents";
+import { getHomeTasksForParent } from "@/actions/home-tasks";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { CreateHomeTaskForm } from "@/components/forms/create-home-task-form";
+import { ParentHomeTasksPanel } from "@/components/home-tasks/parent-home-tasks-panel";
 import { redirect } from "next/navigation";
 
 const relationLabels: Record<string, string> = {
@@ -18,17 +21,41 @@ const relationLabels: Record<string, string> = {
 
 export default async function ResponsavelPortalPage() {
   const user = await getSessionUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/login/responsavel");
   if (user.role !== "parent") redirect("/dashboard");
 
-  const children = await getParentChildren(user.id);
+  const [children, homeTasks] = await Promise.all([
+    getParentChildren(user.id),
+    getHomeTasksForParent(user.id),
+  ]);
+
+  const childOptions = children.map(({ student }) => ({
+    id: student.id,
+    name: student.user.fullName,
+  }));
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={`Olá, ${user.fullName.split(" ")[0]}!`}
-        description="Portal do responsável — acompanhe seus filhos"
-      />
+        description="Portal do responsável — acompanhe seus filhos e crie tarefas de casa"
+      >
+        {childOptions.length > 0 && <CreateHomeTaskForm children={childOptions} />}
+      </PageHeader>
+
+      {childOptions.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Home className="h-5 w-5 text-violet-600" aria-hidden="true" />
+              Tarefas de casa da família
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ParentHomeTasksPanel tasks={homeTasks} />
+          </CardContent>
+        </Card>
+      )}
 
       {children.length === 0 ? (
         <EmptyState

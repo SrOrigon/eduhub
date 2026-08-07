@@ -7,14 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/form-fields";
-import { ArrowLeft, Building2, GraduationCap, UserRound } from "lucide-react";
+import { ArrowLeft, Building2, GraduationCap, Heart, UserRound } from "lucide-react";
 
-type Portal = "escola" | "professor" | "aluno";
+type Portal = "escola" | "professor" | "aluno" | "responsavel";
 
 const portalIcons = {
   escola: Building2,
   professor: GraduationCap,
   aluno: UserRound,
+  responsavel: Heart,
 };
 
 const portalConfig: Record<
@@ -57,6 +58,19 @@ const portalConfig: Record<
     demoLabel: "Entrar como aluno (demo)",
     registerHref: "/registro/aluno",
     otherPortals: [
+      { href: "/login/professor", label: "Sou professor" },
+      { href: "/login/responsavel", label: "Sou responsável" },
+      { href: "/login/escola", label: "Sou instituição" },
+    ],
+  },
+  responsavel: {
+    title: "Responsável",
+    description: "Acompanhe filhos, notas e crie tarefas de casa",
+    demoEmail: "mariana@responsavel.local",
+    demoLabel: "Entrar como responsável (demo)",
+    registerHref: "/registro/responsavel",
+    otherPortals: [
+      { href: "/login/aluno", label: "Sou aluno" },
       { href: "/login/professor", label: "Sou professor" },
       { href: "/login/escola", label: "Sou instituição" },
     ],
@@ -130,7 +144,10 @@ export function RoleLoginForm({ portal }: { portal: Portal }) {
 
         {portal === "aluno" && (
           <p className="mt-4 text-sm text-slate-600">
-            Responsável? Use o mesmo acesso de aluno com sua conta de responsável.
+            É pai, mãe ou responsável?{" "}
+            <Link href="/login/responsavel" className="font-semibold text-rose-700 hover:underline">
+              Acesse o portal de responsáveis
+            </Link>
           </p>
         )}
 

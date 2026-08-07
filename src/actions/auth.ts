@@ -30,14 +30,16 @@ function dashboardForRole(role: UserRole) {
 function matchesPortal(role: UserRole, portal: string) {
   if (portal === "escola") return role === "admin" || role === "director";
   if (portal === "professor") return role === "teacher";
-  if (portal === "aluno") return role === "student" || role === "parent";
+  if (portal === "aluno") return role === "student";
+  if (portal === "responsavel") return role === "parent";
   return true;
 }
 
 function portalError(portal: string) {
-  if (portal === "escola") return "Esta conta não é de instituição. Use o login de professor ou aluno.";
+  if (portal === "escola") return "Esta conta não é de instituição. Use o login de professor, aluno ou responsável.";
   if (portal === "professor") return "Esta conta não é de professor. Verifique o tipo de acesso.";
-  if (portal === "aluno") return "Esta conta não é de aluno/responsável. Verifique o tipo de acesso.";
+  if (portal === "aluno") return "Esta conta não é de aluno. Use o login de responsável se for pai/mãe.";
+  if (portal === "responsavel") return "Esta conta não é de responsável. Use o login de aluno se for estudante.";
   return "Tipo de acesso incorreto.";
 }
 
@@ -201,6 +203,56 @@ export async function registerStudentAction(formData: FormData) {
   const token = await createSessionToken(user.id);
   await setSessionCookie(token);
   redirect("/dashboard/aluno");
+}
+
+export async function registerParentAction(formData: FormData) {
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
+  const fullName = String(formData.get("fullName") ?? "").trim();
+  const schoolSlug = String(formData.get("schoolSlug") ?? "").trim().toLowerCase();
+  const enrollmentCode = String(formData.get("enrollmentCode") ?? "").trim();
+  const relation = String(formData.get("relation") ?? "responsavel");
+
+  if (!email || !password || !fullName || !schoolSlug || !enrollmentCode) {
+    return { error: "Preencha todos os campos, incluindo código da escola e matrícula do filho." };
+  }
+  if (password.length < 6) {
+    return { error: "A senha deve ter pelo menos 6 caracteres." };
+  }
+
+  const school = await findSchoolBySlug(schoolSlug);
+  if (!school) {
+    return { error: "Escola não encontrada. Confira o código com a instituição." };
+  }
+
+  const student = await prisma.student.findFirst({
+    where: { enrollmentCode, user: { schoolId: school.id } },
+  });
+  if (!student) {
+    return { error: "Matrícula do aluno não encontrada nesta escola." };
+  }
+
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) return { error: "Este e-mail já está cadastrado." };
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  const parent = await prisma.user.create({
+    data: {
+      email,
+      passwordHash,
+      fullName,
+      role: "parent",
+      schoolId: school.id,
+    },
+  });
+
+  await prisma.parentStudent.create({
+    data: { parentId: parent.id, studentId: student.id, relation },
+  });
+
+  const token = await createSessionToken(parent.id);
+  await setSessionCookie(token);
+  redirect("/dashboard/responsavel");
 }
 
 /** Lista turmas públicas para cadastro de aluno (por código parcial da escola). */
