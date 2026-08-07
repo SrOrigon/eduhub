@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { requireSession } from "@/lib/auth";
+import { requireSessionResult } from "@/lib/auth";
 import { getSchoolSettings } from "@/lib/school-settings";
 import { hasPermission } from "@/lib/permissions";
 import { notifyStudentParents } from "@/lib/notifications";
@@ -23,7 +23,9 @@ async function assertTeacherClass(userId: string, classId: string, schoolId: str
 }
 
 export async function createDiaryEntryAction(formData: FormData) {
-  const user = await requireSession(["admin", "director", "teacher"]);
+  const session = await requireSessionResult(["admin", "director", "teacher"]);
+  if (!session.ok) return { error: session.error };
+  const user = session.user;
   if (!user.schoolId) return { error: "Escola não configurada." };
 
   const settings = await getSchoolSettings(user.schoolId);
@@ -39,7 +41,11 @@ export async function createDiaryEntryAction(formData: FormData) {
   if (!classId || !content || !dateStr) return { error: "Preencha turma, data e conteúdo." };
 
   if (user.role === "teacher") {
-    await assertTeacherClass(user.id, classId, user.schoolId);
+    try {
+      await assertTeacherClass(user.id, classId, user.schoolId);
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : "Sem permissão nesta turma." };
+    }
   }
 
   await prisma.classDiaryEntry.create({
@@ -57,7 +63,9 @@ export async function createDiaryEntryAction(formData: FormData) {
 }
 
 export async function createOccurrenceAction(formData: FormData) {
-  const user = await requireSession(["admin", "director", "teacher"]);
+  const session = await requireSessionResult(["admin", "director", "teacher"]);
+  if (!session.ok) return { error: session.error };
+  const user = session.user;
   if (!user.schoolId) return { error: "Escola não configurada." };
 
   const settings = await getSchoolSettings(user.schoolId);
@@ -77,7 +85,11 @@ export async function createOccurrenceAction(formData: FormData) {
   }
 
   if (user.role === "teacher") {
-    await assertTeacherClass(user.id, classId, user.schoolId);
+    try {
+      await assertTeacherClass(user.id, classId, user.schoolId);
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : "Sem permissão nesta turma." };
+    }
   }
 
   const occurrence = await prisma.occurrence.create({

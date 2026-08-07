@@ -66,7 +66,7 @@ export default async function FilhoDetailPage({ params }: { params: Promise<{ id
             Boletim completo
           </Button>
         </Link>
-        <CreateHomeTaskForm children={[{ id: student.id, name: student.user.fullName }]} />
+        <CreateHomeTaskForm childOptions={[{ id: student.id, name: student.user.fullName }]} />
       </PageHeader>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -18,6 +18,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       role={user.role}
       branding={settings.branding}
       permissions={settings.permissions}
+      features={{ trailsEnabled: settings.trails.enabled }}
     >
       {children}
     </DashboardShell>

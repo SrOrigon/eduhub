@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireSession } from "@/lib/auth";
+import { requireSessionResult } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { notifyStudent, notifyStudentParents } from "@/lib/notifications";
 import { getSchoolSettings } from "@/lib/school-settings";
@@ -14,7 +14,9 @@ function revalidateLoja() {
 }
 
 export async function createRewardAction(formData: FormData) {
-  const user = await requireSession(["admin", "director"]);
+  const session = await requireSessionResult(["admin", "director"]);
+  if (!session.ok) return { error: session.error };
+  const user = session.user;
   if (!user.schoolId) return { error: "Escola não configurada." };
 
   const settings = await getSchoolSettings(user.schoolId);
@@ -62,7 +64,9 @@ export async function createRewardAction(formData: FormData) {
 }
 
 export async function updateRewardAction(formData: FormData) {
-  const user = await requireSession(["admin", "director"]);
+  const session = await requireSessionResult(["admin", "director"]);
+  if (!session.ok) return { error: session.error };
+  const user = session.user;
   if (!user.schoolId) return { error: "Escola não configurada." };
 
   const settings = await getSchoolSettings(user.schoolId);
@@ -110,7 +114,9 @@ export async function updateRewardAction(formData: FormData) {
 }
 
 export async function deleteRewardAction(formData: FormData) {
-  const user = await requireSession(["admin", "director"]);
+  const session = await requireSessionResult(["admin", "director"]);
+  if (!session.ok) return { error: session.error };
+  const user = session.user;
   if (!user.schoolId) return { error: "Escola não configurada." };
 
   const settings = await getSchoolSettings(user.schoolId);
@@ -143,8 +149,15 @@ export async function deleteRewardAction(formData: FormData) {
 }
 
 export async function toggleRewardAction(formData: FormData) {
-  const user = await requireSession(["admin", "director"]);
+  const session = await requireSessionResult(["admin", "director"]);
+  if (!session.ok) return { error: session.error };
+  const user = session.user;
   if (!user.schoolId) return { error: "Escola não configurada." };
+
+  const settings = await getSchoolSettings(user.schoolId);
+  if (user.role === "director" && !hasPermission(user.role, settings, "director.manageRewards")) {
+    return { error: "Sem permissão para gerenciar prêmios." };
+  }
 
   const rewardId = String(formData.get("rewardId") ?? "");
   const reward = await prisma.reward.findFirst({
@@ -162,7 +175,9 @@ export async function toggleRewardAction(formData: FormData) {
 }
 
 export async function redeemRewardAction(formData: FormData) {
-  const user = await requireSession(["admin", "director", "teacher", "student"]);
+  const session = await requireSessionResult(["admin", "director", "teacher", "student"]);
+  if (!session.ok) return { error: session.error };
+  const user = session.user;
   const rewardId = String(formData.get("rewardId") ?? "");
   let studentId = String(formData.get("studentId") ?? "");
 
@@ -189,9 +204,6 @@ export async function redeemRewardAction(formData: FormData) {
 
   if (!reward) return { error: "Recompensa indisponível." };
   if (!student) return { error: "Aluno não encontrado." };
-  if (student.coins < reward.coinCost) {
-    return { error: `Moedas insuficientes. Você tem ${student.coins}, precisa de ${reward.coinCost}.` };
-  }
 
   const settings = await getSchoolSettings(user.schoolId);
   if (settings.shop.requireStock && reward.stock === null) {
@@ -201,23 +213,36 @@ export async function redeemRewardAction(formData: FormData) {
     return { error: "Recompensa esgotada." };
   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.student.update({
-      where: { id: studentId },
-      data: { coins: { decrement: reward.coinCost } },
-    });
-
-    await tx.rewardRedemption.create({
-      data: { studentId, rewardId, coinCost: reward.coinCost },
-    });
-
-    if (reward.stock !== null) {
-      await tx.reward.update({
-        where: { id: rewardId },
-        data: { stock: { decrement: 1 } },
+  try {
+    await prisma.$transaction(async (tx) => {
+      const debited = await tx.student.updateMany({
+        where: { id: studentId, coins: { gte: reward.coinCost } },
+        data: { coins: { decrement: reward.coinCost } },
       });
+      if (debited.count === 0) throw new Error("INSUFFICIENT_COINS");
+
+      if (reward.stock !== null) {
+        const stocked = await tx.reward.updateMany({
+          where: { id: rewardId, stock: { gt: 0 } },
+          data: { stock: { decrement: 1 } },
+        });
+        if (stocked.count === 0) throw new Error("OUT_OF_STOCK");
+      }
+
+      await tx.rewardRedemption.create({
+        data: { studentId, rewardId, coinCost: reward.coinCost },
+      });
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (msg === "INSUFFICIENT_COINS") {
+      return {
+        error: `Moedas insuficientes. Você tem ${student.coins}, precisa de ${reward.coinCost}.`,
+      };
     }
-  });
+    if (msg === "OUT_OF_STOCK") return { error: "Recompensa esgotada." };
+    throw e;
+  }
 
   await notifyStudent(
     studentId,
@@ -238,7 +263,9 @@ export async function redeemRewardAction(formData: FormData) {
 }
 
 export async function fulfillRedemptionAction(formData: FormData) {
-  const user = await requireSession(["admin", "director", "teacher"]);
+  const session = await requireSessionResult(["admin", "director", "teacher"]);
+  if (!session.ok) return { error: session.error };
+  const user = session.user;
   const settings = await getSchoolSettings(user.schoolId);
   if (user.role === "teacher") {
     if (!hasPermission(user.role, settings, "teacher.fulfillShop")) {

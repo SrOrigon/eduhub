@@ -14,7 +14,7 @@ interface ChildOption {
   name: string;
 }
 
-export function CreateHomeTaskForm({ children }: { children: ChildOption[] }) {
+export function CreateHomeTaskForm({ childOptions }: { childOptions: ChildOption[] }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(
     async (_prev: { error?: string; success?: boolean } | null, formData: FormData) => {
@@ -25,7 +25,7 @@ export function CreateHomeTaskForm({ children }: { children: ChildOption[] }) {
     null
   );
 
-  if (children.length === 0) return null;
+  if (childOptions.length === 0) return null;
 
   return (
     <>
@@ -43,7 +43,7 @@ export function CreateHomeTaskForm({ children }: { children: ChildOption[] }) {
             <Label htmlFor="ht-studentId">Filho(a)</Label>
             <Select id="ht-studentId" name="studentId" required defaultValue="">
               <option value="">Selecione...</option>
-              {children.map((c) => (
+              {childOptions.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </Select>

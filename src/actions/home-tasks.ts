@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireSession } from "@/lib/auth";
+import { requireSessionResult } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { awardXp } from "@/lib/gamification";
 import { hasPermission } from "@/lib/permissions";
@@ -24,7 +24,10 @@ async function assertParentChild(parentId: string, studentId: string) {
 }
 
 export async function createHomeTaskAction(formData: FormData) {
-  const user = await requireSession(["parent"]);
+  const session = await requireSessionResult(["parent"]);
+  if (!session.ok) return { error: session.error };
+  const user = session.user;
+
   const studentId = String(formData.get("studentId") ?? "");
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim() || null;
@@ -68,7 +71,10 @@ export async function createHomeTaskAction(formData: FormData) {
 }
 
 export async function completeHomeTaskAction(formData: FormData) {
-  const user = await requireSession(["student"]);
+  const session = await requireSessionResult(["student"]);
+  if (!session.ok) return { error: session.error };
+  const user = session.user;
+
   const taskId = String(formData.get("taskId") ?? "");
 
   const student = await prisma.student.findUnique({ where: { userId: user.id } });
@@ -105,7 +111,10 @@ export async function completeHomeTaskAction(formData: FormData) {
 }
 
 export async function deleteHomeTaskAction(formData: FormData) {
-  const user = await requireSession(["parent"]);
+  const session = await requireSessionResult(["parent"]);
+  if (!session.ok) return { error: session.error };
+  const user = session.user;
+
   const taskId = String(formData.get("taskId") ?? "");
 
   const task = await prisma.homeTask.findFirst({

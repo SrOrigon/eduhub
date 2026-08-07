@@ -70,4 +70,18 @@ export async function requireSession(allowedRoles?: UserRole[]) {
   return user;
 }
 
+export type SessionResult =
+  | { ok: true; user: SessionUser }
+  | { ok: false; error: string };
+
+/** Use in server actions with useActionState — returns error instead of throwing. */
+export async function requireSessionResult(allowedRoles?: UserRole[]): Promise<SessionResult> {
+  const user = await getSessionUser();
+  if (!user) return { ok: false, error: "Sessão expirada. Faça login novamente." };
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    return { ok: false, error: "Sem permissão para esta ação." };
+  }
+  return { ok: true, user };
+}
+
 export { SESSION_COOKIE };

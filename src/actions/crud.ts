@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
-import { requireSession } from "@/lib/auth";
+import { requireSession, requireSessionResult } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { processGradeXp, processAttendanceXp, completeMission } from "@/lib/gamification";
 import { syncTrailAfterAction } from "@/lib/trails";
@@ -460,7 +460,9 @@ export async function bulkAttendanceAction(formData: FormData) {
 }
 
 export async function requestMissionCompletionAction(formData: FormData) {
-  const user = await requireSession(["student"]);
+  const session = await requireSessionResult(["student"]);
+  if (!session.ok) return { error: session.error };
+  const user = session.user;
   const missionId = String(formData.get("missionId") ?? "");
   if (!missionId) return { error: "Missão inválida." };
 

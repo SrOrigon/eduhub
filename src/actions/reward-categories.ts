@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireSession } from "@/lib/auth";
+import { requireSessionResult } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getSchoolSettings } from "@/lib/school-settings";
 import { hasPermission } from "@/lib/permissions";
@@ -10,12 +10,19 @@ function revalidateShop() {
   ["/dashboard/loja", "/dashboard/gamificacao"].forEach((p) => revalidatePath(p));
 }
 
-async function assertManageRewards(user: { role: string; schoolId: string | null }) {
-  if (!user.schoolId) throw new Error("Escola não configurada.");
+function manageRewardsError(user: { role: string; schoolId: string | null }) {
+  if (!user.schoolId) return "Escola não configurada.";
+  return null;
+}
+
+async function checkDirectorManageRewards(user: { role: string; schoolId: string | null }) {
+  const base = manageRewardsError(user);
+  if (base) return base;
   const settings = await getSchoolSettings(user.schoolId);
   if (user.role === "director" && !hasPermission(user.role, settings, "director.manageRewards")) {
-    throw new Error("Sem permissão para gerenciar a loja.");
+    return "Sem permissão para gerenciar a loja.";
   }
+  return null;
 }
 
 export async function getRewardCategoriesForSchool(schoolId: string | null) {
@@ -28,12 +35,12 @@ export async function getRewardCategoriesForSchool(schoolId: string | null) {
 }
 
 export async function createRewardCategoryAction(formData: FormData) {
-  const user = await requireSession(["admin", "director"]);
-  try {
-    await assertManageRewards(user);
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : "Sem permissão." };
-  }
+  const session = await requireSessionResult(["admin", "director"]);
+  if (!session.ok) return { error: session.error };
+  const user = session.user;
+
+  const permError = await checkDirectorManageRewards(user);
+  if (permError) return { error: permError };
 
   const name = String(formData.get("name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
@@ -60,12 +67,12 @@ export async function createRewardCategoryAction(formData: FormData) {
 }
 
 export async function updateRewardCategoryAction(formData: FormData) {
-  const user = await requireSession(["admin", "director"]);
-  try {
-    await assertManageRewards(user);
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : "Sem permissão." };
-  }
+  const session = await requireSessionResult(["admin", "director"]);
+  if (!session.ok) return { error: session.error };
+  const user = session.user;
+
+  const permError = await checkDirectorManageRewards(user);
+  if (permError) return { error: permError };
 
   const categoryId = String(formData.get("categoryId") ?? "");
   const name = String(formData.get("name") ?? "").trim();
@@ -98,12 +105,12 @@ export async function updateRewardCategoryAction(formData: FormData) {
 }
 
 export async function toggleRewardCategoryAction(formData: FormData) {
-  const user = await requireSession(["admin", "director"]);
-  try {
-    await assertManageRewards(user);
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : "Sem permissão." };
-  }
+  const session = await requireSessionResult(["admin", "director"]);
+  if (!session.ok) return { error: session.error };
+  const user = session.user;
+
+  const permError = await checkDirectorManageRewards(user);
+  if (permError) return { error: permError };
 
   const categoryId = String(formData.get("categoryId") ?? "");
   const category = await prisma.rewardCategory.findFirst({
@@ -121,12 +128,12 @@ export async function toggleRewardCategoryAction(formData: FormData) {
 }
 
 export async function deleteRewardCategoryAction(formData: FormData) {
-  const user = await requireSession(["admin", "director"]);
-  try {
-    await assertManageRewards(user);
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : "Sem permissão." };
-  }
+  const session = await requireSessionResult(["admin", "director"]);
+  if (!session.ok) return { error: session.error };
+  const user = session.user;
+
+  const permError = await checkDirectorManageRewards(user);
+  if (permError) return { error: permError };
 
   const categoryId = String(formData.get("categoryId") ?? "");
   const category = await prisma.rewardCategory.findFirst({

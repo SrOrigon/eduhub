@@ -23,11 +23,7 @@ export function RegisterStudentForm() {
   );
 
   useEffect(() => {
-    if (schoolSlug.length < 3) {
-      setClasses([]);
-      setSchoolName(null);
-      return;
-    }
+    if (schoolSlug.length < 3) return;
     const t = setTimeout(() => {
       startLoad(async () => {
         const fd = new FormData();
@@ -62,7 +58,14 @@ export function RegisterStudentForm() {
               required
               placeholder="ex.: escola-demo"
               value={schoolSlug}
-              onChange={(e) => setSchoolSlug(e.target.value.toLowerCase())}
+              onChange={(e) => {
+                const v = e.target.value.toLowerCase();
+                setSchoolSlug(v);
+                if (v.length < 3) {
+                  setClasses([]);
+                  setSchoolName(null);
+                }
+              }}
             />
             {schoolName && (
               <p className="mt-1 text-sm text-emerald-700">Escola: {schoolName}</p>

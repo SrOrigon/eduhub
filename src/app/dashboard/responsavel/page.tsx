@@ -40,7 +40,7 @@ export default async function ResponsavelPortalPage() {
         title={`Olá, ${user.fullName.split(" ")[0]}!`}
         description="Portal do responsável — acompanhe seus filhos e crie tarefas de casa"
       >
-        {childOptions.length > 0 && <CreateHomeTaskForm children={childOptions} />}
+        {childOptions.length > 0 && <CreateHomeTaskForm childOptions={childOptions} />}
       </PageHeader>
 
       {childOptions.length > 0 && (

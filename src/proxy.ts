@@ -9,11 +9,18 @@ const secret = new TextEncoder().encode(
 
 const publicPaths = ["/", "/login", "/registro"];
 
+function isPublicPath(pathname: string) {
+  if (publicPaths.includes(pathname)) return true;
+  if (pathname.startsWith("/login/")) return true;
+  if (pathname.startsWith("/registro/")) return true;
+  return false;
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (
-    publicPaths.includes(pathname) ||
+    isPublicPath(pathname) ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api") ||
     pathname.includes(".")

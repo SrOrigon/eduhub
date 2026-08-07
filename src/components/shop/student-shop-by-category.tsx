@@ -27,10 +27,12 @@ function RewardCard({
   reward,
   student,
   kidFriendly,
+  canRedeem,
 }: {
   reward: RewardItem;
   student: { id: string; coins: number };
   kidFriendly: boolean;
+  canRedeem: boolean;
 }) {
   const outOfStock = reward.stock !== null && reward.stock <= 0;
   const canAfford = student.coins >= reward.coinCost;
@@ -54,7 +56,7 @@ function RewardCard({
             </Badge>
           )}
         </div>
-        {reward.isActive && (
+        {reward.isActive && canRedeem && (
           <RedeemRewardButton
             rewardId={reward.id}
             studentId={student.id}
@@ -75,12 +77,14 @@ export function StudentShopByCategory({
   student,
   role,
   preview = false,
+  canRedeem = true,
 }: {
   rewards: RewardItem[];
   categories: CategoryItem[];
   student?: { id: string; coins: number } | null;
   role: UserRole;
   preview?: boolean;
+  canRedeem?: boolean;
 }) {
   const kidFriendly = isKidFriendlyRole(role);
   const visibleRewards = preview
@@ -120,7 +124,13 @@ export function StudentShopByCategory({
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {items.map((reward) =>
                 student && !preview ? (
-                  <RewardCard key={reward.id} reward={reward} student={student} kidFriendly={kidFriendly} />
+                  <RewardCard
+                    key={reward.id}
+                    reward={reward}
+                    student={student}
+                    kidFriendly={kidFriendly}
+                    canRedeem={canRedeem}
+                  />
                 ) : (
                   <Card key={reward.id} className={kidFriendly ? "kid-card" : ""}>
                     <CardHeader>
@@ -148,7 +158,13 @@ export function StudentShopByCategory({
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {uncategorized.map((reward) =>
               student && !preview ? (
-                <RewardCard key={reward.id} reward={reward} student={student} kidFriendly={kidFriendly} />
+                <RewardCard
+                  key={reward.id}
+                  reward={reward}
+                  student={student}
+                  kidFriendly={kidFriendly}
+                  canRedeem={canRedeem}
+                />
               ) : (
                 <Card key={reward.id}>
                   <CardHeader>

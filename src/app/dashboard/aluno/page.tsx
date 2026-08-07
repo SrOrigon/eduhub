@@ -15,7 +15,7 @@ import {
   getStudentExerciseStatus,
 } from "@/components/exercises/exercise-status-badge";
 import { RequestMissionButton } from "@/components/forms/request-mission-button";
-import { TodayChecklist, type TodayItem } from "@/components/student/today-checklist";
+import { type TodayItem } from "@/components/student/today-checklist";
 import { TodayAgendaWidget } from "@/components/school/today-agenda-widget";
 import { getTodayAgendaForStudent } from "@/lib/today-agenda";
 import { getHomeTasksForStudent } from "@/actions/home-tasks";

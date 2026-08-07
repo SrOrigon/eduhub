@@ -15,6 +15,7 @@ export function DashboardShell({
   role,
   branding,
   permissions,
+  features,
 }: {
   children: React.ReactNode;
   userName: string;
@@ -22,6 +23,7 @@ export function DashboardShell({
   role: UserRole;
   branding: SchoolSettings["branding"];
   permissions: SchoolSettings["permissions"];
+  features?: { trailsEnabled: boolean };
 }) {
   const pathname = usePathname();
   const kidFriendly = isKidFriendlyRole(role);
@@ -44,6 +46,7 @@ export function DashboardShell({
           role={role}
           kidFriendly={kidFriendly}
           permissions={permissions}
+          features={features}
           tagline={branding.tagline}
           mobileOpen={mobileMenuOpen}
           onMobileOpenChange={setMobileMenuOpen}

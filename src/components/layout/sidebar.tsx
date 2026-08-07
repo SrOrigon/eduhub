@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import {
   BarChart3,
   BookOpen,
@@ -33,6 +32,7 @@ import {
   canAccessNav,
   canSeeExerciciosStaff,
   canSeeGamificacao,
+  hasPermission,
   type NavPermission,
 } from "@/lib/permissions";
 import type { SchoolSettings } from "@/lib/school-settings";
@@ -92,15 +92,23 @@ const allNavItems: NavItem[] = [
   { href: "/dashboard/configuracoes", label: "Configurações", icon: Settings, roles: ["admin", "director"], permission: "director.editSettings" },
 ];
 
-function filterNav(role: UserRole, permissions: SchoolSettings["permissions"]) {
+function filterNav(
+  role: UserRole,
+  permissions: SchoolSettings["permissions"],
+  features?: { trailsEnabled: boolean }
+) {
   return allNavItems.filter((item) => {
     if (!item.roles.includes(role)) return false;
     if (item.customCheck && !item.customCheck(role, permissions)) return false;
-    if (role === "student" && item.href === "/dashboard/loja") return true;
+    if (role === "student" && item.href === "/dashboard/loja") {
+      return hasPermission(role, permissions, "student.redeemShop");
+    }
+    if (item.href === "/dashboard/trilhas" && role === "student") {
+      return features?.trailsEnabled !== false;
+    }
     if (item.permission && role === "teacher") {
       return canAccessNav(role, permissions, item.permission);
     }
-    if (item.href === "/dashboard/trilhas" && role === "student") return true;
     if (item.href === "/dashboard/comunicados") return true;
     if (item.permission && role === "director") {
       return canAccessNav(role, permissions, item.permission);
@@ -113,16 +121,18 @@ function NavLinks({
   pathname,
   role,
   permissions,
+  features,
   kidFriendly,
   onNavigate,
 }: {
   pathname: string;
   role: UserRole;
   permissions: SchoolSettings["permissions"];
+  features?: { trailsEnabled: boolean };
   kidFriendly: boolean;
   onNavigate?: () => void;
 }) {
-  const items = filterNav(role, permissions);
+  const items = filterNav(role, permissions, features);
 
   return (
     <nav aria-label="Menu principal" className="space-y-1 p-3 sm:p-4">
@@ -158,6 +168,7 @@ export function Sidebar({
   role,
   kidFriendly,
   permissions,
+  features,
   tagline,
   mobileOpen,
   onMobileOpenChange,
@@ -168,6 +179,7 @@ export function Sidebar({
   role: UserRole;
   kidFriendly: boolean;
   permissions: SchoolSettings["permissions"];
+  features?: { trailsEnabled: boolean };
   tagline?: string;
   mobileOpen: boolean;
   onMobileOpenChange: (open: boolean) => void;
@@ -211,6 +223,7 @@ export function Sidebar({
               schoolName={schoolName}
               role={role}
               permissions={permissions}
+              features={features}
               tagline={tagline}
               kidFriendly={kidFriendly}
               onNavigate={() => onMobileOpenChange(false)}
@@ -229,6 +242,7 @@ export function Sidebar({
           schoolName={schoolName}
           role={role}
           permissions={permissions}
+          features={features}
           tagline={tagline}
           kidFriendly={kidFriendly}
         />
@@ -243,6 +257,7 @@ function SidebarContent({
   schoolName,
   role,
   permissions,
+  features,
   tagline,
   kidFriendly,
   onNavigate,
@@ -252,6 +267,7 @@ function SidebarContent({
   schoolName: string;
   role: UserRole;
   permissions: SchoolSettings["permissions"];
+  features?: { trailsEnabled: boolean };
   tagline?: string;
   kidFriendly: boolean;
   onNavigate?: () => void;
@@ -273,6 +289,7 @@ function SidebarContent({
           pathname={pathname}
           role={role}
           permissions={permissions}
+          features={features}
           kidFriendly={kidFriendly}
           onNavigate={onNavigate}
         />

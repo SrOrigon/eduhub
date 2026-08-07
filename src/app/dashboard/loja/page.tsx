@@ -13,6 +13,7 @@ import { redirect } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import { isKidFriendlyRole } from "@/lib/constants";
 import { getSchoolSettings } from "@/lib/school-settings";
+import { hasPermission } from "@/lib/permissions";
 
 export default async function LojaPage() {
   const user = await getSessionUser();
@@ -24,10 +25,13 @@ export default async function LojaPage() {
   const isStaff =
     isAdmin || (user.role === "teacher" && settings.shop.teachersCanFulfill);
   const isStudent = user.role === "student";
+  const canRedeem =
+    !isStudent || hasPermission(user.role, settings, "student.redeemShop");
   const kidFriendly = isKidFriendlyRole(user.role);
 
   let student = null;
   if (isStudent) {
+    if (!canRedeem) redirect("/dashboard/aluno");
     student = await prisma.student.findFirst({ where: { userId: user.id } });
     if (!student) redirect("/dashboard/aluno");
   }
@@ -106,6 +110,7 @@ export default async function LojaPage() {
             student={student}
             role={user.role}
             preview={!isStudent}
+            canRedeem={canRedeem}
           />
         </section>
       )}
