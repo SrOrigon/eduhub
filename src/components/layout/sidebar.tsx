@@ -20,6 +20,11 @@ import {
   Heart,
   Bell,
   PenLine,
+  BookMarked,
+  Route,
+  Megaphone,
+  Activity,
+  Flag,
 } from "lucide-react";
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -54,6 +59,7 @@ const allNavItems: NavItem[] = [
   { href: "/dashboard/professores", label: "Professores", icon: UserCog, roles: ["admin", "director"], permission: "director.manageTeachers" },
   { href: "/dashboard/notas", label: "Notas", icon: BookOpen, roles: ["admin", "director", "teacher"], permission: "teacher.createGrades" },
   { href: "/dashboard/frequencia", label: "Frequência", icon: ClipboardList, roles: ["admin", "director", "teacher"], permission: "teacher.recordAttendance" },
+  { href: "/dashboard/diario", label: "Diário de classe", icon: BookMarked, roles: ["admin", "director", "teacher"], permission: "teacher.manageDiary" },
   {
     href: "/dashboard/exercicios",
     label: "Exercícios",
@@ -77,6 +83,10 @@ const allNavItems: NavItem[] = [
   },
   { href: "/dashboard/responsaveis", label: "Responsáveis", icon: Heart, roles: ["admin", "director"] },
   { href: "/dashboard/relatorios", label: "Relatórios", icon: BarChart3, roles: ["admin", "director", "teacher"], permission: "teacher.viewReports" },
+  { href: "/dashboard/engajamento", label: "Engajamento", icon: Activity, roles: ["admin", "director", "teacher"], permission: "teacher.viewReports" },
+  { href: "/dashboard/trilhas", label: "Trilhas", icon: Route, roles: ["admin", "director", "teacher", "student"], permission: "teacher.createTrails" },
+  { href: "/dashboard/metas-coletivas", label: "Metas coletivas", icon: Flag, roles: ["admin", "director", "teacher"], permission: "teacher.createClassGoals" },
+  { href: "/dashboard/comunicados", label: "Comunicados", icon: Megaphone, roles: ["admin", "director", "teacher", "student", "parent"] },
   { href: "/dashboard/busca", label: "Busca", icon: BookOpen, roles: ["student", "parent"] },
   { href: "/dashboard/notificacoes", label: "Notificações", icon: Bell, roles: ["admin", "director", "teacher", "student", "parent"] },
   { href: "/dashboard/configuracoes", label: "Configurações", icon: Settings, roles: ["admin", "director"], permission: "director.editSettings" },
@@ -90,6 +100,8 @@ function filterNav(role: UserRole, permissions: SchoolSettings["permissions"]) {
     if (item.permission && role === "teacher") {
       return canAccessNav(role, permissions, item.permission);
     }
+    if (item.href === "/dashboard/trilhas" && role === "student") return true;
+    if (item.href === "/dashboard/comunicados") return true;
     if (item.permission && role === "director") {
       return canAccessNav(role, permissions, item.permission);
     }
@@ -182,7 +194,7 @@ export function Sidebar({
           />
           <aside
             id="mobile-sidebar"
-            className="relative flex h-full w-[min(20rem,90vw)] flex-col bg-white shadow-xl"
+            className="relative flex h-full w-[min(20rem,90vw)] flex-col bg-white shadow-xl safe-area-bottom safe-area-top"
             aria-label="Menu lateral"
           >
             <button

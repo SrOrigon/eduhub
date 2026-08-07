@@ -1,9 +1,9 @@
-import { LoginForm } from "@/components/forms/login-form";
+import { AuthPortalPicker } from "@/components/auth/auth-portal-picker";
 
-export default function LoginPage() {
+export default function LoginHubPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-indigo-50 to-white px-4 py-8">
-      <LoginForm />
+    <main className="flex min-h-dvh items-center justify-center bg-gradient-to-b from-indigo-50 to-white px-4 py-8">
+      <AuthPortalPicker mode="login" />
     </main>
   );
 }

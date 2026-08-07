@@ -79,7 +79,7 @@ export function SchoolRulesForm({ initial }: { initial: SchoolSettings }) {
         </p>
       </CardHeader>
       <CardContent>
-        <div className="mb-4 flex flex-wrap gap-2" role="tablist">
+        <div className="touch-scroll-x mb-4 flex gap-2 pb-1" role="tablist">
           {tabs.map((t) => (
             <button
               key={t.id}
@@ -87,7 +87,7 @@ export function SchoolRulesForm({ initial }: { initial: SchoolSettings }) {
               role="tab"
               aria-selected={tab === t.id}
               onClick={() => setTab(t.id)}
-              className={`rounded-full px-3 py-1.5 text-sm font-medium ${
+              className={`shrink-0 rounded-full px-4 py-2.5 text-sm font-medium min-h-11 ${
                 tab === t.id
                   ? "bg-[color:var(--school-primary)] text-white"
                   : "bg-slate-100 text-slate-700 hover:bg-slate-200"

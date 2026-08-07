@@ -8,7 +8,7 @@ import { Label, Select, Textarea } from "@/components/ui/form-fields";
 import { FormMessage } from "@/components/ui/form-utils";
 import { Modal } from "@/components/ui/modal";
 import type { QuestionType } from "@/lib/exercises";
-import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, PenLine } from "lucide-react";
 
 interface ClassOption {
   id: string;
@@ -89,8 +89,8 @@ export function CreateExerciseForm({
   return (
     <>
       <Button onClick={() => setOpen(true)} size="lg" className="gap-2">
-        <Sparkles className="h-4 w-4" aria-hidden="true" />
-        Publicar atividade
+        <PenLine className="h-4 w-4" aria-hidden="true" />
+        Publicar para a turma
       </Button>
       <Modal open={open} onClose={closeModal} title="Nova atividade">
         <div className="mb-4 flex gap-2">

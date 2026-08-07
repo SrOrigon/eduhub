@@ -13,6 +13,8 @@ import {
 import { parseOptions, type ChoiceOption, type ExerciseKind, type QuestionType } from "@/lib/exercises";
 import { getSchoolSettings } from "@/lib/school-settings";
 import { hasPermission } from "@/lib/permissions";
+import { syncTrailAfterAction } from "@/lib/trails";
+import { checkAndAwardClassGoals } from "@/lib/class-goals";
 
 function revalidateExercises() {
   [
@@ -388,6 +390,10 @@ export async function submitExerciseAction(formData: FormData) {
 
   revalidateExercises();
   revalidatePath(`/dashboard/exercicios/${exerciseId}`);
+
+  await syncTrailAfterAction(student.id, "exercise", exerciseId);
+  if (student.classId) await checkAndAwardClassGoals(student.classId);
+
   return {
     success: true,
     autoGraded: allChoice,
@@ -505,6 +511,10 @@ export async function gradeSubmissionAction(formData: FormData) {
 
   revalidateExercises();
   revalidatePath(`/dashboard/exercicios/${submission.exerciseId}`);
+
+  await syncTrailAfterAction(submission.studentId, "exercise", submission.exerciseId);
+  if (submission.student.classId) await checkAndAwardClassGoals(submission.student.classId);
+
   return { success: true };
 }
 

@@ -68,7 +68,7 @@ export function BulkAttendanceForm({ classes }: { classes: ClassWithStudents[] }
               {classData.students.map((s) => (
                 <div key={s.id} className="flex items-center justify-between gap-2 text-sm">
                   <span className="truncate">{s.name}</span>
-                  <Select name={`status_${s.id}`} defaultValue="present" className="h-8 w-36">
+                  <Select name={`status_${s.id}`} defaultValue="present" className="min-h-11 w-36 shrink-0 text-base">
                     {ATTENDANCE_STATUSES.map((st) => (
                       <option key={st} value={st}>{statusLabels[st]}</option>
                     ))}

@@ -51,6 +51,8 @@ export type SchoolSettings = {
     parentsOnShop: boolean;
     parentsOnExercise: boolean;
     parentsOnExerciseGraded: boolean;
+    parentsOnOccurrence: boolean;
+    parentsOnAnnouncement: boolean;
     studentOnAbsence: boolean;
     teacherOnSubmission: boolean;
   };
@@ -72,6 +74,22 @@ export type SchoolSettings = {
     accentColor: string;
     tagline: string;
   };
+  classGoals: {
+    defaultTargetPercent: number;
+    defaultXpBonus: number;
+    defaultCoinBonus: number;
+    autoAward: boolean;
+  };
+  diary: {
+    notifyParentsOnOccurrence: boolean;
+  };
+  trails: {
+    enabled: boolean;
+    completionXpBonus: number;
+  };
+  ai: {
+    enabled: boolean;
+  };
   permissions: {
     teacher: {
       createGrades: boolean;
@@ -83,6 +101,11 @@ export type SchoolSettings = {
       viewReports: boolean;
       accessShop: boolean;
       fulfillShop: boolean;
+      manageDiary: boolean;
+      createAnnouncements: boolean;
+      createTrails: boolean;
+      createClassGoals: boolean;
+      createClasses: boolean;
     };
     director: {
       editSettings: boolean;
@@ -135,6 +158,8 @@ export const DEFAULT_SCHOOL_SETTINGS: SchoolSettings = {
     parentsOnShop: true,
     parentsOnExercise: true,
     parentsOnExerciseGraded: true,
+    parentsOnOccurrence: true,
+    parentsOnAnnouncement: true,
     studentOnAbsence: true,
     teacherOnSubmission: true,
   },
@@ -161,6 +186,22 @@ export const DEFAULT_SCHOOL_SETTINGS: SchoolSettings = {
     accentColor: "#f59e0b",
     tagline: "Aprender, evoluir, conquistar",
   },
+  classGoals: {
+    defaultTargetPercent: 80,
+    defaultXpBonus: 100,
+    defaultCoinBonus: 50,
+    autoAward: true,
+  },
+  diary: {
+    notifyParentsOnOccurrence: true,
+  },
+  trails: {
+    enabled: true,
+    completionXpBonus: 75,
+  },
+  ai: {
+    enabled: false,
+  },
   permissions: {
     teacher: {
       createGrades: true,
@@ -172,6 +213,11 @@ export const DEFAULT_SCHOOL_SETTINGS: SchoolSettings = {
       viewReports: true,
       accessShop: true,
       fulfillShop: true,
+      manageDiary: true,
+      createAnnouncements: true,
+      createTrails: true,
+      createClassGoals: true,
+      createClasses: true,
     },
     director: {
       editSettings: true,

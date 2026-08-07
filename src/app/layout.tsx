@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -15,12 +16,29 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "EduHub — Gestão Escolar + Gamificação",
   description: "Plataforma educacional gratuita unindo gestão acadêmica e gamificação para escolas e cursos.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "EduHub",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#4f46e5" },
+    { media: "(prefers-color-scheme: dark)", color: "#4f46e5" },
+  ],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -29,7 +47,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="pt-BR"
       className={`${geistSans.variable} ${geistMono.variable} light h-full bg-white antialiased`}
     >
-      <body className="flex min-h-dvh flex-col bg-white text-slate-900">{children}</body>
+      <body className="flex min-h-dvh flex-col bg-white text-slate-900">
+        {children}
+        <ServiceWorkerRegister />
+      </body>
     </html>
   );
 }

@@ -72,8 +72,8 @@ export function Modal({
         aria-modal="true"
         aria-labelledby="modal-title"
         className={cn(
-          "relative z-10 flex max-h-[90dvh] w-full flex-col",
-          "rounded-t-2xl border border-slate-200 bg-white shadow-xl sm:max-w-lg sm:rounded-xl"
+          "relative z-10 flex max-h-[90dvh] w-full flex-col safe-area-bottom",
+          "rounded-t-2xl border border-slate-200 bg-white shadow-xl sm:max-w-xl sm:rounded-xl"
         )}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-4 sm:px-6">

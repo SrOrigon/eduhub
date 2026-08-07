@@ -11,6 +11,11 @@ export type PermissionKey =
   | "teacher.viewReports"
   | "teacher.accessShop"
   | "teacher.fulfillShop"
+  | "teacher.manageDiary"
+  | "teacher.createAnnouncements"
+  | "teacher.createTrails"
+  | "teacher.createClassGoals"
+  | "teacher.createClasses"
   | "director.editSettings"
   | "director.manageTeachers"
   | "director.manageRewards"
@@ -29,6 +34,11 @@ const DEFAULT_PERMISSIONS: SchoolSettings["permissions"] = {
     viewReports: true,
     accessShop: true,
     fulfillShop: true,
+    manageDiary: true,
+    createAnnouncements: true,
+    createTrails: true,
+    createClassGoals: true,
+    createClasses: true,
   },
   director: {
     editSettings: true,
@@ -102,6 +112,11 @@ export type NavPermission =
   | "teacher.createMissions"
   | "teacher.viewReports"
   | "teacher.accessShop"
+  | "teacher.manageDiary"
+  | "teacher.createAnnouncements"
+  | "teacher.createTrails"
+  | "teacher.createClassGoals"
+  | "teacher.createClasses"
   | "director.manageTeachers"
   | "director.editSettings"
   | "director.manageRewards"

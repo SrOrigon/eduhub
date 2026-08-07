@@ -1,6 +1,6 @@
 export type UserRole = "admin" | "director" | "teacher" | "student" | "parent";
 export type AttendanceStatus = "present" | "absent" | "late" | "justified";
-export type XpSource = "grade" | "attendance" | "mission" | "badge" | "manual" | "exercise";
+export type XpSource = "grade" | "attendance" | "mission" | "badge" | "manual" | "exercise" | "trail" | "classGoal" | "occurrence";
 
 export const USER_ROLES: UserRole[] = ["admin", "director", "teacher", "student", "parent"];
 export const ATTENDANCE_STATUSES: AttendanceStatus[] = ["present", "absent", "late", "justified"];
@@ -32,6 +32,28 @@ export const SUBJECTS = [
 ];
 
 export const PERIODS = ["1º Bimestre", "2º Bimestre", "3º Bimestre", "4º Bimestre"];
+
+export const OCCURRENCE_KINDS = ["observation", "positive", "warning", "disciplinary"] as const;
+export type OccurrenceKind = (typeof OCCURRENCE_KINDS)[number];
+
+export const OCCURRENCE_LABELS: Record<OccurrenceKind, string> = {
+  observation: "Observação",
+  positive: "Elogio",
+  warning: "Advertência",
+  disciplinary: "Ocorrência disciplinar",
+};
+
+export const CLASS_GOAL_METRICS = ["mission", "exercise", "attendance"] as const;
+export type ClassGoalMetric = (typeof CLASS_GOAL_METRICS)[number];
+
+export const CLASS_GOAL_LABELS: Record<ClassGoalMetric, string> = {
+  mission: "Missões concluídas",
+  exercise: "Exercícios entregues",
+  attendance: "Presença",
+};
+
+export const TRAIL_STEP_TYPES = ["mission", "exercise", "reward"] as const;
+export type TrailStepType = (typeof TRAIL_STEP_TYPES)[number];
 
 export function isKidFriendlyRole(role: UserRole) {
   return role === "student";

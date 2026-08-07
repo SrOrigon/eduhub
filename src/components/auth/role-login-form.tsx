@@ -1,0 +1,154 @@
+"use client";
+
+import { useActionState } from "react";
+import Link from "next/link";
+import { loginAction } from "@/actions/auth";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/form-fields";
+import { ArrowLeft, Building2, GraduationCap, UserRound } from "lucide-react";
+
+type Portal = "escola" | "professor" | "aluno";
+
+const portalIcons = {
+  escola: Building2,
+  professor: GraduationCap,
+  aluno: UserRound,
+};
+
+const portalConfig: Record<
+  Portal,
+  {
+    title: string;
+    description: string;
+    demoEmail: string;
+    demoLabel: string;
+    registerHref: string;
+    otherPortals: { href: string; label: string }[];
+  }
+> = {
+  escola: {
+    title: "Instituição",
+    description: "Acesso para direção e gestão escolar",
+    demoEmail: "admin@eduhub.local",
+    demoLabel: "Entrar como diretor (demo)",
+    registerHref: "/registro/escola",
+    otherPortals: [
+      { href: "/login/professor", label: "Sou professor" },
+      { href: "/login/aluno", label: "Sou aluno" },
+    ],
+  },
+  professor: {
+    title: "Professor",
+    description: "Publique tarefas e gerencie suas turmas",
+    demoEmail: "professor@eduhub.local",
+    demoLabel: "Entrar como professor (demo)",
+    registerHref: "/registro/professor",
+    otherPortals: [
+      { href: "/login/escola", label: "Sou instituição" },
+      { href: "/login/aluno", label: "Sou aluno" },
+    ],
+  },
+  aluno: {
+    title: "Aluno",
+    description: "Faça exercícios, missões e acompanhe seu progresso",
+    demoEmail: "lucas@aluno.local",
+    demoLabel: "Entrar como aluno (demo)",
+    registerHref: "/registro/aluno",
+    otherPortals: [
+      { href: "/login/professor", label: "Sou professor" },
+      { href: "/login/escola", label: "Sou instituição" },
+    ],
+  },
+};
+
+export function RoleLoginForm({ portal }: { portal: Portal }) {
+  const cfg = portalConfig[portal];
+  const Icon = portalIcons[portal];
+
+  const [state, formAction, pending] = useActionState(
+    async (_prev: { error?: string } | null, formData: FormData) => {
+      formData.set("portal", portal);
+      return (await loginAction(formData)) ?? null;
+    },
+    null
+  );
+
+  return (
+    <Card className="w-full max-w-lg rounded-2xl border-2 shadow-lg">
+      <CardHeader>
+        <Link
+          href="/login"
+          className="mb-2 inline-flex items-center gap-1 text-sm text-slate-600 hover:text-indigo-600"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Voltar
+        </Link>
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100">
+            <Icon className="h-6 w-6 text-indigo-600" aria-hidden="true" />
+          </div>
+          <div>
+            <CardTitle className="text-xl">{cfg.title}</CardTitle>
+            <CardDescription>{cfg.description}</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <form action={formAction} className="space-y-4" aria-label={`Login ${cfg.title}`}>
+          <div>
+            <Label htmlFor="email">E-mail</Label>
+            <Input id="email" name="email" type="email" required autoComplete="email" />
+          </div>
+          <div>
+            <Label htmlFor="password">Senha</Label>
+            <Input id="password" name="password" type="password" required autoComplete="current-password" />
+          </div>
+          {state?.error && (
+            <p className="rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-800" role="alert">
+              {state.error}
+            </p>
+          )}
+          <Button type="submit" className="w-full" size="lg" disabled={pending}>
+            {pending ? "Entrando..." : "Entrar"}
+          </Button>
+        </form>
+
+        <div className="mt-5 space-y-2">
+          <p className="text-sm font-medium text-slate-700">Demo rápido:</p>
+          <form action={formAction}>
+            <input type="hidden" name="portal" value={portal} />
+            <input type="hidden" name="email" value={cfg.demoEmail} />
+            <input type="hidden" name="password" value="demo123" />
+            <Button type="submit" variant="outline" className="w-full" disabled={pending}>
+              {cfg.demoLabel}
+            </Button>
+          </form>
+          <p className="text-xs text-slate-500">Senha demo: demo123</p>
+        </div>
+
+        {portal === "aluno" && (
+          <p className="mt-4 text-sm text-slate-600">
+            Responsável? Use o mesmo acesso de aluno com sua conta de responsável.
+          </p>
+        )}
+
+        <p className="mt-4 text-center text-sm text-slate-600">
+          Não tem conta?{" "}
+          <Link href={cfg.registerHref} className="font-semibold text-indigo-700 hover:underline">
+            Cadastre-se
+          </Link>
+        </p>
+
+        <div className="mt-4 flex flex-wrap justify-center gap-3 border-t border-slate-100 pt-4 text-xs text-slate-500">
+          {cfg.otherPortals.map((o) => (
+            <Link key={o.href} href={o.href} className="hover:text-indigo-600 hover:underline">
+              {o.label}
+            </Link>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

@@ -60,7 +60,7 @@ export function StudentExercisesList({ exercises }: { exercises: ExerciseItem[] 
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Filtrar exercícios">
+      <div className="touch-scroll-x flex gap-2 pb-1" role="tablist" aria-label="Filtrar exercícios">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -68,9 +68,9 @@ export function StudentExercisesList({ exercises }: { exercises: ExerciseItem[] 
             role="tab"
             aria-selected={tab === t.id}
             onClick={() => setTab(t.id)}
-            className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+            className={`shrink-0 rounded-full px-4 py-2.5 text-sm font-medium min-h-11 transition-colors ${
               tab === t.id
-                ? "bg-indigo-600 text-white"
+                ? "bg-[color:var(--school-primary)] text-white"
                 : "bg-slate-100 text-slate-700 hover:bg-slate-200"
             }`}
           >

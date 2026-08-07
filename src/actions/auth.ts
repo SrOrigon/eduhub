@@ -11,11 +11,40 @@ import {
 } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { ensureDefaultBadges, ensureDefaultRewards } from "@/lib/school-setup";
+import { createUniqueSchoolSlug, findSchoolBySlug } from "@/lib/school-lookup";
 import type { UserRole } from "@/lib/constants";
+
+function dashboardForRole(role: UserRole) {
+  switch (role) {
+    case "student":
+      return "/dashboard/aluno";
+    case "teacher":
+      return "/dashboard/professor";
+    case "parent":
+      return "/dashboard/responsavel";
+    default:
+      return "/dashboard";
+  }
+}
+
+function matchesPortal(role: UserRole, portal: string) {
+  if (portal === "escola") return role === "admin" || role === "director";
+  if (portal === "professor") return role === "teacher";
+  if (portal === "aluno") return role === "student" || role === "parent";
+  return true;
+}
+
+function portalError(portal: string) {
+  if (portal === "escola") return "Esta conta não é de instituição. Use o login de professor ou aluno.";
+  if (portal === "professor") return "Esta conta não é de professor. Verifique o tipo de acesso.";
+  if (portal === "aluno") return "Esta conta não é de aluno/responsável. Verifique o tipo de acesso.";
+  return "Tipo de acesso incorreto.";
+}
 
 export async function loginAction(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
+  const portal = String(formData.get("portal") ?? "");
 
   if (!email || !password) {
     return { error: "Preencha e-mail e senha." };
@@ -26,19 +55,22 @@ export async function loginAction(formData: FormData) {
     return { error: "E-mail ou senha inválidos." };
   }
 
+  if (portal && !matchesPortal(user.role as UserRole, portal)) {
+    return { error: portalError(portal) };
+  }
+
   const token = await createSessionToken(user.id);
   await setSessionCookie(token);
-  redirect("/dashboard");
+  redirect(dashboardForRole(user.role as UserRole));
 }
 
-export async function registerAction(formData: FormData) {
+export async function registerSchoolAction(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   const fullName = String(formData.get("fullName") ?? "").trim();
-  const role = String(formData.get("role") ?? "director") as UserRole;
   const schoolName = String(formData.get("schoolName") ?? "").trim();
 
-  if (!email || !password || !fullName) {
+  if (!email || !password || !fullName || !schoolName) {
     return { error: "Preencha todos os campos obrigatórios." };
   }
   if (password.length < 6) {
@@ -49,30 +81,152 @@ export async function registerAction(formData: FormData) {
   if (existing) return { error: "Este e-mail já está cadastrado." };
 
   const passwordHash = await bcrypt.hash(password, 10);
+  const slug = await createUniqueSchoolSlug(schoolName);
 
-  let schoolId: string | undefined;
-  if (schoolName) {
-    const slug = schoolName
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
-    const school = await prisma.school.create({
-      data: { name: schoolName, slug: `${slug}-${Date.now()}` },
-    });
-    schoolId = school.id;
-    await ensureDefaultBadges(school.id);
-    await ensureDefaultRewards(school.id);
-  }
+  const school = await prisma.school.create({
+    data: { name: schoolName, slug },
+  });
+  await ensureDefaultBadges(school.id);
+  await ensureDefaultRewards(school.id);
 
   const user = await prisma.user.create({
-    data: { email, passwordHash, fullName, role, schoolId },
+    data: {
+      email,
+      passwordHash,
+      fullName,
+      role: "director",
+      schoolId: school.id,
+    },
   });
 
   const token = await createSessionToken(user.id);
   await setSessionCookie(token);
   redirect("/dashboard");
+}
+
+export async function registerTeacherAction(formData: FormData) {
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
+  const fullName = String(formData.get("fullName") ?? "").trim();
+  const schoolSlug = String(formData.get("schoolSlug") ?? "").trim().toLowerCase();
+
+  if (!email || !password || !fullName || !schoolSlug) {
+    return { error: "Preencha nome, e-mail, senha e código da escola." };
+  }
+  if (password.length < 6) {
+    return { error: "A senha deve ter pelo menos 6 caracteres." };
+  }
+
+  const school = await findSchoolBySlug(schoolSlug);
+  if (!school) {
+    return { error: "Escola não encontrada. Confira o código com a instituição." };
+  }
+
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) return { error: "Este e-mail já está cadastrado." };
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  const user = await prisma.user.create({
+    data: {
+      email,
+      passwordHash,
+      fullName,
+      role: "teacher",
+      schoolId: school.id,
+    },
+  });
+
+  const token = await createSessionToken(user.id);
+  await setSessionCookie(token);
+  redirect("/dashboard/professor");
+}
+
+export async function registerStudentAction(formData: FormData) {
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
+  const fullName = String(formData.get("fullName") ?? "").trim();
+  const schoolSlug = String(formData.get("schoolSlug") ?? "").trim().toLowerCase();
+  const classId = String(formData.get("classId") ?? "").trim();
+  let enrollmentCode = String(formData.get("enrollmentCode") ?? "").trim();
+
+  if (!email || !password || !fullName || !schoolSlug || !classId) {
+    return { error: "Preencha todos os campos, incluindo turma." };
+  }
+  if (password.length < 6) {
+    return { error: "A senha deve ter pelo menos 6 caracteres." };
+  }
+
+  const school = await findSchoolBySlug(schoolSlug);
+  if (!school) {
+    return { error: "Escola não encontrada. Confira o código com a instituição." };
+  }
+
+  const turma = await prisma.classGroup.findFirst({
+    where: { id: classId, schoolId: school.id },
+  });
+  if (!turma) {
+    return { error: "Turma inválida para esta escola." };
+  }
+
+  if (!enrollmentCode) {
+    enrollmentCode = `ALU-${Date.now().toString(36).toUpperCase()}`;
+  }
+
+  const existingEmail = await prisma.user.findUnique({ where: { email } });
+  if (existingEmail) return { error: "Este e-mail já está cadastrado." };
+
+  const existingCode = await prisma.student.findUnique({ where: { enrollmentCode } });
+  if (existingCode) return { error: "Matrícula já em uso. Escolha outra." };
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  await prisma.user.create({
+    data: {
+      email,
+      passwordHash,
+      fullName,
+      role: "student",
+      schoolId: school.id,
+      student: {
+        create: { enrollmentCode, classId: turma.id },
+      },
+    },
+  });
+
+  revalidatePath("/dashboard/alunos");
+  revalidatePath("/dashboard/turmas");
+
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) return { error: "Erro ao criar conta." };
+
+  const token = await createSessionToken(user.id);
+  await setSessionCookie(token);
+  redirect("/dashboard/aluno");
+}
+
+/** Lista turmas públicas para cadastro de aluno (por código parcial da escola). */
+export async function listClassesForSignupAction(formData: FormData) {
+  const schoolSlug = String(formData.get("schoolSlug") ?? "").trim().toLowerCase();
+  if (!schoolSlug || schoolSlug.length < 3) {
+    return { classes: [] as { id: string; name: string }[] };
+  }
+
+  const school = await findSchoolBySlug(schoolSlug);
+  if (!school) {
+    return { classes: [], schoolName: null, schoolSlug: null };
+  }
+
+  const classes = await prisma.classGroup.findMany({
+    where: { schoolId: school.id },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+
+  return { classes, schoolName: school.name, schoolSlug: school.slug };
+}
+
+/** @deprecated use registerSchoolAction */
+export async function registerAction(formData: FormData) {
+  return registerSchoolAction(formData);
 }
 
 export async function logoutAction() {

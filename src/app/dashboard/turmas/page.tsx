@@ -1,5 +1,7 @@
 import { getSessionUser } from "@/lib/auth";
 import { getClasses, getTeachers } from "@/lib/queries";
+import { getSchoolSettings } from "@/lib/school-settings";
+import { hasPermission } from "@/lib/permissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CreateClassForm } from "@/components/forms/create-class-form";
 import { PageHeader } from "@/components/layout/page-header";
@@ -12,16 +14,32 @@ export default async function TurmasPage() {
   if (!user) redirect("/login");
   if (user.role === "student") redirect("/dashboard/aluno");
 
+  const settings = await getSchoolSettings(user.schoolId);
+  const isTeacher = user.role === "teacher";
+  const canCreateClass =
+    user.role === "admin" ||
+    user.role === "director" ||
+    (isTeacher && hasPermission(user.role, settings, "teacher.createClasses"));
+
+  const teacherFilter = isTeacher ? user.id : undefined;
+
   const [classes, teachers] = await Promise.all([
-    getClasses(user.schoolId),
-    getTeachers(user.schoolId),
+    getClasses(user.schoolId, teacherFilter),
+    user.role === "admin" || user.role === "director" ? getTeachers(user.schoolId) : Promise.resolve([]),
   ]);
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Turmas" description="Organização de turmas, professores e alunos">
-        {(user.role === "admin" || user.role === "director") && (
-          <CreateClassForm teachers={teachers} />
+      <PageHeader
+        title={isTeacher ? "Minhas turmas" : "Turmas"}
+        description={
+          isTeacher
+            ? "Cadastre turmas e publique exercícios para todos os alunos de uma vez."
+            : "Organização de turmas, professores e alunos"
+        }
+      >
+        {canCreateClass && (
+          <CreateClassForm teachers={teachers} teacherMode={isTeacher} />
         )}
       </PageHeader>
 
@@ -29,7 +47,11 @@ export default async function TurmasPage() {
         <EmptyState
           icon={GraduationCap}
           title="Nenhuma turma cadastrada"
-          description="Crie a primeira turma para começar a matricular alunos."
+          description={
+            isTeacher
+              ? "Cadastre sua primeira turma para começar a publicar tarefas."
+              : "Crie a primeira turma para começar a matricular alunos."
+          }
         />
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
@@ -38,7 +60,8 @@ export default async function TurmasPage() {
               <CardHeader>
                 <CardTitle>{turma.name}</CardTitle>
                 <p className="text-sm text-slate-500">
-                  {turma.gradeLevel}º ano · {turma.year} · Prof. {turma.teacher?.fullName ?? "Não definido"}
+                  {turma.gradeLevel}º ano · {turma.year}
+                  {!isTeacher && ` · Prof. ${turma.teacher?.fullName ?? "Não definido"}`}
                 </p>
               </CardHeader>
               <CardContent>

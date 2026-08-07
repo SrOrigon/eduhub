@@ -22,6 +22,8 @@ model School {
   badges      Badge[]
   rewards     Reward[]
   exercises   Exercise[]
+  trails      LearningTrail[]
+  announcements Announcement[]
 }
 
 model User {
@@ -43,6 +45,10 @@ model User {
   sessions       Session[]
   parentLinks    ParentStudent[]  @relation("ParentUser")
   notifications  Notification[]
+  diaryEntries   ClassDiaryEntry[]
+  occurrences    Occurrence[]     @relation("OccurrenceTeacher")
+  announcements  Announcement[]
+  announcementReads AnnouncementRead[]
 }
 
 model Notification {
@@ -88,6 +94,11 @@ model ClassGroup {
   attendance  Attendance[]
   missions    Mission[]
   exercises   Exercise[]
+  diaryEntries ClassDiaryEntry[]
+  occurrences Occurrence[]
+  trails      LearningTrail[]
+  classGoals  ClassGoal[]
+  announcements Announcement[]
 
   @@index([schoolId])
 }
@@ -113,6 +124,8 @@ model Student {
   rewardRedemptions RewardRedemption[]
   parentLinks       ParentStudent[]
   exerciseSubmissions ExerciseSubmission[]
+  trailProgress     StudentTrailProgress[]
+  occurrences       Occurrence[]
 
   @@index([classId])
 }
@@ -163,6 +176,7 @@ model Mission {
   school          School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   classGroup      ClassGroup?      @relation(fields: [classId], references: [id], onDelete: SetNull)
   studentMissions StudentMission[]
+  trailSteps      TrailStep[]
 
   @@index([schoolId])
 }
@@ -230,6 +244,7 @@ model Reward {
 
   school      School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   redemptions RewardRedemption[]
+  trailSteps  TrailStep[]
 }
 
 model RewardRedemption {
@@ -284,6 +299,7 @@ model Exercise {
   teacher      User                 @relation("ExerciseTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
   questions    ExerciseQuestion[]
   submissions  ExerciseSubmission[]
+  trailSteps   TrailStep[]
 
   @@index([schoolId])
   @@index([classId])
@@ -340,4 +356,136 @@ model ExerciseAnswer {
   question   ExerciseQuestion   @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@unique([submissionId, questionId])
+}
+
+model ClassDiaryEntry {
+  id        String   @id @default(cuid())
+  classId   String
+  teacherId String
+  date      DateTime
+  subject   String?
+  content   String
+  createdAt DateTime @default(now())
+
+  classGroup ClassGroup @relation(fields: [classId], references: [id], onDelete: Cascade)
+  teacher    User       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([classId, date])
+}
+
+model Occurrence {
+  id          String   @id @default(cuid())
+  classId     String
+  studentId   String?
+  teacherId   String
+  kind        String   @default("observation")
+  description String
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  classGroup ClassGroup @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student    Student?   @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  teacher    User       @relation("OccurrenceTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([classId, date])
+  @@index([studentId])
+}
+
+model LearningTrail {
+  id          String   @id @default(cuid())
+  schoolId    String
+  classId     String?
+  title       String
+  description String?
+  xpBonus     Int      @default(0)
+  coinBonus   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  school   School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  classGroup ClassGroup?        @relation(fields: [classId], references: [id], onDelete: SetNull)
+  steps    TrailStep[]
+  progress StudentTrailProgress[]
+
+  @@index([schoolId])
+}
+
+model TrailStep {
+  id         String  @id @default(cuid())
+  trailId    String
+  sortOrder  Int     @default(0)
+  stepType   String
+  missionId  String?
+  exerciseId String?
+  rewardId   String?
+  title      String?
+
+  trail    LearningTrail @relation(fields: [trailId], references: [id], onDelete: Cascade)
+  mission  Mission?      @relation(fields: [missionId], references: [id], onDelete: SetNull)
+  exercise Exercise?     @relation(fields: [exerciseId], references: [id], onDelete: SetNull)
+  reward   Reward?       @relation(fields: [rewardId], references: [id], onDelete: SetNull)
+
+  @@index([trailId])
+}
+
+model StudentTrailProgress {
+  id          String    @id @default(cuid())
+  studentId   String
+  trailId     String
+  currentStep Int       @default(0)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  student Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  trail   LearningTrail @relation(fields: [trailId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, trailId])
+}
+
+model Announcement {
+  id          String   @id @default(cuid())
+  schoolId    String
+  classId     String?
+  authorId    String
+  title       String
+  body        String
+  publishedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  school     School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  classGroup ClassGroup?        @relation(fields: [classId], references: [id], onDelete: SetNull)
+  author     User               @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  reads      AnnouncementRead[]
+
+  @@index([schoolId, publishedAt])
+}
+
+model AnnouncementRead {
+  id             String   @id @default(cuid())
+  announcementId String
+  userId         String
+  readAt         DateTime @default(now())
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+}
+
+model ClassGoal {
+  id            String    @id @default(cuid())
+  classId       String
+  title         String
+  metric        String    @default("mission")
+  targetPercent Int       @default(80)
+  xpBonus       Int       @default(100)
+  coinBonus     Int       @default(50)
+  deadline      DateTime?
+  isActive      Boolean   @default(true)
+  awardedAt     DateTime?
+  createdAt     DateTime  @default(now())
+
+  classGroup ClassGroup @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@index([classId])
 }

@@ -16,6 +16,8 @@ import {
 } from "@/components/exercises/exercise-status-badge";
 import { RequestMissionButton } from "@/components/forms/request-mission-button";
 import { TodayChecklist, type TodayItem } from "@/components/student/today-checklist";
+import { TodayAgendaWidget } from "@/components/school/today-agenda-widget";
+import { getTodayAgendaForStudent } from "@/lib/today-agenda";
 import { SchoolCalendarWidget } from "@/components/school/school-calendar-widget";
 import { formatDate } from "@/lib/utils";
 import { redirect } from "next/navigation";
@@ -44,12 +46,13 @@ export default async function AlunoPortalPage() {
     );
   }
 
-  const [schoolRanking, classRanking, missions, exercises, settings] = await Promise.all([
+  const [schoolRanking, classRanking, missions, exercises, settings, agenda] = await Promise.all([
     getRanking(user.schoolId),
     getRanking(user.schoolId, student.classId),
     getMissionsForStudent(user.schoolId, student.classId),
     getExercisesForUser(user),
     getSchoolSettings(user.schoolId),
+    getTodayAgendaForStudent(student.id, student.classId, user.schoolId),
   ]);
 
   const enrichedExercises = exercises.map((ex) => {
@@ -133,7 +136,12 @@ export default async function AlunoPortalPage() {
         </div>
       </PageHeader>
 
-      <TodayChecklist items={todayItems} firstName={firstName} />
+      <TodayAgendaWidget
+        items={agenda.items.length > 0 ? agenda.items : todayItems}
+        dayStatus={agenda.dayStatus}
+        title={`Seu dia, ${firstName}`}
+        kidFriendly
+      />
 
       <SchoolCalendarWidget settings={settings} compact />
 

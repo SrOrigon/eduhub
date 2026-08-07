@@ -60,6 +60,22 @@ export function getUpcomingCalendarItems(settings: SchoolSettings, limit = 5) {
   return items;
 }
 
+export function getUpcomingEvents(settings: SchoolSettings, limit = 5) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return getUpcomingCalendarItems(settings, limit).map((item) => {
+    const diff = Math.round((item.date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return {
+      date: item.date.toISOString().slice(0, 10),
+      label: item.label,
+      kind: item.kind,
+      isToday: diff === 0,
+      daysUntil: diff,
+    };
+  });
+}
+
 export function getTodaySchoolStatus(settings: SchoolSettings) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);

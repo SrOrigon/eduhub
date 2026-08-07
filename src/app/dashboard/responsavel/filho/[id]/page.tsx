@@ -13,7 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
 import { formatDate } from "@/lib/utils";
-import { ATTENDANCE_LABELS, type AttendanceStatus } from "@/lib/constants";
+import { ATTENDANCE_LABELS, OCCURRENCE_LABELS, type AttendanceStatus, type OccurrenceKind } from "@/lib/constants";
+import { getOccurrencesForStudent } from "@/actions/diary";
 import { notFound, redirect } from "next/navigation";
 import { BookOpen, FileText, Gift, Medal, Target, PenLine } from "lucide-react";
 
@@ -43,6 +44,7 @@ export default async function FilhoDetailPage({ params }: { params: Promise<{ id
     return { ...ex, sub, status };
   });
   const pendingExercises = exerciseItems.filter((e) => e.status === "pending").length;
+  const occurrences = await getOccurrencesForStudent(student.id);
 
   return (
     <div className="space-y-6">
@@ -213,6 +215,26 @@ export default async function FilhoDetailPage({ params }: { params: Promise<{ id
           </CardContent>
         </Card>
       </div>
+
+      {occurrences.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Ocorrências escolares</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {occurrences.map((o) => (
+              <div key={o.id} className="rounded-lg border border-slate-100 p-3 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary">{OCCURRENCE_LABELS[o.kind as OccurrenceKind] ?? o.kind}</Badge>
+                  <span className="text-xs text-slate-500">{formatDate(o.date)}</span>
+                </div>
+                <p className="mt-2 text-slate-800">{o.description}</p>
+                <p className="mt-1 text-xs text-slate-500">{o.teacher.fullName} · {o.classGroup.name}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

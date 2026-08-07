@@ -5,6 +5,8 @@ import bcrypt from "bcryptjs";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { processGradeXp, processAttendanceXp, completeMission } from "@/lib/gamification";
+import { syncTrailAfterAction } from "@/lib/trails";
+import { checkAndAwardClassGoals } from "@/lib/class-goals";
 import {
   notifyStudent,
   notifyStudentParents,
@@ -71,13 +73,22 @@ export async function createStudentAction(formData: FormData) {
 }
 
 export async function createClassAction(formData: FormData) {
-  const user = await requireSession(["admin", "director"]);
+  const user = await requireSession(["admin", "director", "teacher"]);
   if (!user.schoolId) return { error: "Escola não configurada." };
+
+  const settings = await getSchoolSettings(user.schoolId);
+  if (user.role === "teacher" && !hasPermission(user.role, settings, "teacher.createClasses")) {
+    return { error: "Sem permissão para cadastrar turmas." };
+  }
 
   const name = String(formData.get("name") ?? "").trim();
   const gradeLevel = String(formData.get("gradeLevel") ?? "").trim();
   const year = parseInt(String(formData.get("year") ?? "2026"), 10);
-  const teacherId = String(formData.get("teacherId") ?? "") || null;
+  let teacherId = String(formData.get("teacherId") ?? "") || null;
+
+  if (user.role === "teacher") {
+    teacherId = user.id;
+  }
 
   if (!name || !gradeLevel) return { error: "Nome e série são obrigatórios." };
 
@@ -86,6 +97,8 @@ export async function createClassAction(formData: FormData) {
   });
 
   revalidateAll();
+  revalidatePath("/dashboard/professor");
+  revalidatePath("/dashboard/exercicios");
   return { success: true };
 }
 
@@ -365,6 +378,9 @@ export async function completeMissionAction(formData: FormData) {
       );
     }
 
+    await syncTrailAfterAction(studentId, "mission", missionId);
+    if (student.classId) await checkAndAwardClassGoals(student.classId);
+
     revalidateAll();
     return { success: true };
   } catch (e) {
@@ -436,6 +452,8 @@ export async function bulkAttendanceAction(formData: FormData) {
       }
     }
   }
+
+  await checkAndAwardClassGoals(classId);
 
   revalidateAll();
   return { success: true, message: `Chamada registrada para ${students.length} alunos (${registered} novos).` };

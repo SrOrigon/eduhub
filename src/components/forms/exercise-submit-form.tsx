@@ -240,19 +240,31 @@ export function ExerciseSubmitForm({
         )}
       </div>
 
-      <div className="flex flex-wrap justify-center gap-1">
-        {questions.map((_, i) => (
-          <button
-            key={i}
-            type="button"
-            onClick={() => setStep(i)}
-            className={cn(
-              "h-2.5 w-2.5 rounded-full",
-              i === step ? "bg-indigo-600" : answeredCount > i ? "bg-indigo-300" : "bg-slate-300"
-            )}
-            aria-label={`Ir para questão ${i + 1}`}
-          />
-        ))}
+      <div className="touch-scroll-x flex gap-2 pb-1">
+        {questions.map((_, i) => {
+          const done = i < answeredCount;
+          const active = i === step;
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setStep(i)}
+              className={cn(
+                "flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold transition-colors",
+                active
+                  ? "bg-[color:var(--school-primary)] text-white ring-2 ring-[color:var(--school-primary-ring)]"
+                  : done
+                    ? "bg-[color:var(--school-primary-soft)] text-[color:var(--school-primary)]"
+                    : "bg-slate-200 text-slate-600",
+                kidFriendly && "min-h-12 min-w-12 text-base"
+              )}
+              aria-label={`Ir para questão ${i + 1}`}
+              aria-current={active ? "step" : undefined}
+            >
+              {i + 1}
+            </button>
+          );
+        })}
       </div>
 
       <FormMessage message={state} />

@@ -200,6 +200,37 @@ body {
   font-weight: 800;
 }
 
+/* Alvos de toque — mobile, tablet e telas touch */
+@media (max-width: 1023px), (pointer: coarse) {
+  button,
+  [role="tab"],
+  select {
+    min-height: var(--touch-min);
+  }
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  width: 1.125rem;
+  height: 1.125rem;
+  min-height: 1.125rem;
+  min-width: 1.125rem;
+}
+
+.touch-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.safe-area-bottom {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.safe-area-top {
+  padding-top: max(0px, env(safe-area-inset-top));
+}
+
 @media print {
   body {
     background: white !important;

@@ -1,9 +1,14 @@
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getRanking } from "@/lib/queries";
-import { getExercisesForUser } from "@/lib/exercises";
+import { getExercisesForUser, getTeacherClasses } from "@/lib/exercises";
 import { getSchoolSettings } from "@/lib/school-settings";
+import { hasPermission } from "@/lib/permissions";
 import { SchoolCalendarWidget } from "@/components/school/school-calendar-widget";
+import { TodayAgendaWidget } from "@/components/school/today-agenda-widget";
+import { getTodayAgendaForTeacher } from "@/lib/today-agenda";
+import { CreateClassForm } from "@/components/forms/create-class-form";
+import { CreateExerciseForm } from "@/components/forms/create-exercise-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/layout/page-header";
@@ -27,11 +32,15 @@ export default async function TeacherDashboardPage() {
   });
 
   const totalStudents = myClasses.reduce((s, c) => s + c._count.students, 0);
-  const [ranking, exercises, settings] = await Promise.all([
+  const [ranking, exercises, settings, agenda, teacherClasses] = await Promise.all([
     getRanking(user.schoolId),
     getExercisesForUser(user),
     getSchoolSettings(user.schoolId),
+    getTodayAgendaForTeacher(user.id, user.schoolId),
+    getTeacherClasses(user),
   ]);
+
+  const canCreateClass = hasPermission(user.role, settings, "teacher.createClasses");
 
   const pendingGrades = exercises.reduce(
     (n, ex) => n + ex.submissions.filter((s) => s.status === "submitted").length,
@@ -45,8 +54,15 @@ export default async function TeacherDashboardPage() {
     <div className="space-y-6">
       <PageHeader
         title="Painel do Professor"
-        description={`Olá, ${user.fullName}! Gerencie suas turmas e acompanhe o engajamento.`}
-      />
+        description={`Olá, ${user.fullName}! Cadastre turmas e publique tarefas para todos os alunos.`}
+      >
+        <div className="flex flex-wrap gap-2">
+          {canCreateClass && <CreateClassForm teacherMode />}
+          {teacherClasses.length > 0 && (
+            <CreateExerciseForm classes={teacherClasses} presets={settings.exercises.presets} />
+          )}
+        </div>
+      </PageHeader>
 
       <Card className="border-slate-200 bg-slate-50/80">
         <CardContent className="flex flex-wrap items-start gap-3 py-4">
@@ -67,6 +83,13 @@ export default async function TeacherDashboardPage() {
       </Card>
 
       <SchoolCalendarWidget settings={settings} compact />
+
+      <TodayAgendaWidget
+        items={agenda.items}
+        dayStatus={agenda.dayStatus}
+        title="Sua agenda de hoje"
+        subtitle={`${agenda.classCount} turma(s) · ${agenda.items.filter((i) => !i.done).length} pendência(s)`}
+      />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
@@ -160,8 +183,8 @@ export default async function TeacherDashboardPage() {
 
       {myClasses.length === 0 && (
         <EmptyState
-          title="Nenhuma turma atribuída"
-          description="Peça ao diretor para vincular turmas ao seu perfil."
+          title="Nenhuma turma ainda"
+          description="Cadastre sua primeira turma acima. Depois publique exercícios e toda a turma recebe de uma vez."
         />
       )}
 

@@ -57,8 +57,8 @@ export default function HomePage() {
               Entrar
             </Button>
           </Link>
-          <Link href="/registro" className="flex-1 sm:flex-none">
-            <Button className="w-full sm:w-auto">Criar conta grátis</Button>
+          <Link href="/registro/escola" className="flex-1 sm:flex-none">
+            <Button className="w-full sm:w-auto">Criar escola</Button>
           </Link>
         </div>
       </header>
@@ -76,9 +76,9 @@ export default function HomePage() {
             Desenvolvido para escolas e cursos com orçamento zero.
           </p>
           <div className="mt-6 flex flex-col gap-3 sm:mt-8 sm:flex-row sm:flex-wrap sm:justify-center">
-            <Link href="/registro" className="w-full sm:w-auto">
+            <Link href="/registro/escola" className="w-full sm:w-auto">
               <Button size="lg" className="w-full sm:w-auto">
-                Criar conta gratuita
+                Registrar instituição
               </Button>
             </Link>
             <Link href="/login" className="w-full sm:w-auto">
@@ -89,7 +89,22 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="responsive-grid mt-12 sm:mt-20">
+        <section className="mt-10 grid gap-4 sm:grid-cols-3">
+          <Link href="/login/professor" className="rounded-2xl border-2 border-emerald-200 bg-emerald-50/50 p-6 text-center transition hover:border-emerald-400">
+            <h2 className="text-lg font-bold text-slate-900">Professor</h2>
+            <p className="mt-2 text-sm text-slate-600">Cadastre turmas e publique tarefas manualmente</p>
+          </Link>
+          <Link href="/login/aluno" className="rounded-2xl border-2 border-amber-200 bg-amber-50/50 p-6 text-center transition hover:border-amber-400">
+            <h2 className="text-lg font-bold text-slate-900">Aluno</h2>
+            <p className="mt-2 text-sm text-slate-600">Faça exercícios, missões e acompanhe seu progresso</p>
+          </Link>
+          <Link href="/login/escola" className="rounded-2xl border-2 border-indigo-200 bg-indigo-50/50 p-6 text-center transition hover:border-indigo-400">
+            <h2 className="text-lg font-bold text-slate-900">Instituição</h2>
+            <p className="mt-2 text-sm text-slate-600">Gestão, relatórios e código para vincular a escola</p>
+          </Link>
+        </section>
+
+        <section className="responsive-grid mt-12 sm:mt-16">
           {features.map(({ icon: Icon, title, description }) => (
             <Card key={title} className="min-w-0 border-indigo-100">
               <CardHeader>

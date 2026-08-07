@@ -205,10 +205,13 @@ export async function getStudentById(id: string, schoolId: string | null) {
   });
 }
 
-export async function getClasses(schoolId: string | null) {
+export async function getClasses(schoolId: string | null, teacherId?: string) {
   if (!schoolId) return [];
   return prisma.classGroup.findMany({
-    where: { schoolId },
+    where: {
+      schoolId,
+      ...(teacherId ? { teacherId } : {}),
+    },
     include: {
       teacher: { select: { fullName: true } },
       students: { include: { user: { select: { fullName: true } } } },

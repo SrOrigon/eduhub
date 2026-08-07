@@ -30,6 +30,11 @@ function parentsAllowed(kind: NotifyKind, settings: SchoolSettings) {
   }
 }
 
+function studentAllowed(kind: NotifyKind, settings: SchoolSettings) {
+  if (kind === "absence") return settings.notifications.studentOnAbsence;
+  return true;
+}
+
 export async function createNotification(
   userId: string,
   title: string,

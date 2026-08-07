@@ -38,6 +38,18 @@ export default async function ConfiguracoesPage() {
         <Badge variant="default">{settings.branding.tagline ? "Tema personalizado" : "Tema padrão"}</Badge>
       </div>
 
+      <Card className="border-indigo-200 bg-indigo-50/80">
+        <CardHeader>
+          <CardTitle className="text-base">Código da escola</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="font-mono text-lg font-bold text-indigo-900">{school.slug}</p>
+          <p className="mt-2 text-sm text-slate-600">
+            Compartilhe com professores e alunos no cadastro. Demo: <strong>escola-demo</strong>
+          </p>
+        </CardContent>
+      </Card>
+
       <SchoolSettingsForm school={school} />
       <SchoolRulesForm initial={settings} />
 
