@@ -1,50 +1,54 @@
 import { prisma } from "@/lib/db";
 import type { XpSource } from "@/lib/constants";
+import {
+  DEFAULT_SCHOOL_SETTINGS,
+  getSchoolSettingsForStudent,
+  type SchoolSettings,
+} from "@/lib/school-settings";
 
-const XP_PER_GRADE_POINT = 5;
-const XP_ATTENDANCE_PRESENT = 10;
-const XP_ATTENDANCE_LATE = 5;
-const XP_GRADE_BONUS_THRESHOLD = 9;
-const XP_GRADE_BONUS = 50;
-const COINS_PER_MISSION = 1;
-
-function calculateLevel(xpTotal: number) {
-  return Math.max(1, Math.floor(xpTotal / 300) + 1);
+export function calculateLevel(xpTotal: number, xpPerLevel = DEFAULT_SCHOOL_SETTINGS.xp.xpPerLevel) {
+  const step = Math.max(1, xpPerLevel);
+  return Math.max(1, Math.floor(xpTotal / step) + 1);
 }
 
-export function getXpProgress(xpTotal: number) {
-  const xpInLevel = xpTotal % 300;
-  const percent = Math.round((xpInLevel / 300) * 100);
-  const level = calculateLevel(xpTotal);
-  const xpForNextLevel = level * 300;
+export function getXpProgress(xpTotal: number, xpPerLevel = DEFAULT_SCHOOL_SETTINGS.xp.xpPerLevel) {
+  const step = Math.max(1, xpPerLevel);
+  const xpInLevel = xpTotal % step;
+  const percent = Math.round((xpInLevel / step) * 100);
+  const level = calculateLevel(xpTotal, step);
+  const xpForNextLevel = level * step;
   return { percent, xpInLevel, xpForNextLevel, level };
 }
-
-export { calculateLevel };
 
 export async function awardXp(
   studentId: string,
   amount: number,
   reason: string,
   source: XpSource,
-  coins = 0
+  coins = 0,
+  settings?: SchoolSettings
 ) {
   if (amount <= 0 && coins <= 0) return;
 
+  const rules = settings ?? (await getSchoolSettingsForStudent(studentId));
+  const xpPerLevel = rules.xp.xpPerLevel;
+
   await prisma.$transaction(async (tx) => {
-    await tx.xpTransaction.create({
-      data: { studentId, amount, reason, source },
-    });
+    if (amount > 0) {
+      await tx.xpTransaction.create({
+        data: { studentId, amount, reason, source },
+      });
+    }
 
     const student = await tx.student.update({
       where: { id: studentId },
       data: {
-        xpTotal: { increment: amount },
-        coins: { increment: coins },
+        xpTotal: amount > 0 ? { increment: amount } : undefined,
+        coins: coins > 0 ? { increment: coins } : undefined,
       },
     });
 
-    const newLevel = calculateLevel(student.xpTotal + amount);
+    const newLevel = calculateLevel(student.xpTotal, xpPerLevel);
     if (newLevel !== student.level) {
       await tx.student.update({
         where: { id: studentId },
@@ -52,14 +56,17 @@ export async function awardXp(
       });
     }
 
-    await checkAndAwardBadges(tx, studentId, student.xpTotal + amount);
+    if (amount > 0) {
+      await checkAndAwardBadges(tx, studentId, student.xpTotal, rules);
+    }
   });
 }
 
 async function checkAndAwardBadges(
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
   studentId: string,
-  xpTotal: number
+  xpTotal: number,
+  settings: SchoolSettings
 ) {
   const student = await tx.student.findUnique({
     where: { id: studentId },
@@ -75,12 +82,14 @@ async function checkAndAwardBadges(
       ? student.grades.reduce((s, g) => s + g.value, 0) / student.grades.length
       : 0;
   const completedMissions = student.studentMissions.filter((m) => m.completedAt).length;
+  const badgeXp = settings.xp.badgeUnlock;
+  const excellent = settings.academic.passGrade + 2;
 
   for (const badge of badges) {
     if (earnedIds.has(badge.id)) continue;
 
     let earned = false;
-    if (badge.icon === "star" && avgGrade >= 9) earned = true;
+    if (badge.icon === "star" && avgGrade >= excellent) earned = true;
     if (badge.icon === "target" && completedMissions >= 5) earned = true;
     if (badge.icon === "clock" && xpTotal >= badge.xpRequired) earned = true;
     if (xpTotal >= badge.xpRequired && badge.icon !== "star" && badge.icon !== "target")
@@ -88,40 +97,72 @@ async function checkAndAwardBadges(
 
     if (earned) {
       await tx.studentBadge.create({ data: { studentId, badgeId: badge.id } });
-      await tx.xpTransaction.create({
-        data: {
-          studentId,
-          amount: 25,
-          reason: `Conquista desbloqueada: ${badge.name}`,
-          source: "badge",
-        },
-      });
-      await tx.student.update({
-        where: { id: studentId },
-        data: { xpTotal: { increment: 25 } },
-      });
+      if (badgeXp > 0) {
+        await tx.xpTransaction.create({
+          data: {
+            studentId,
+            amount: badgeXp,
+            reason: `Conquista desbloqueada: ${badge.name}`,
+            source: "badge",
+          },
+        });
+        const updated = await tx.student.update({
+          where: { id: studentId },
+          data: { xpTotal: { increment: badgeXp } },
+        });
+        const newLevel = calculateLevel(updated.xpTotal, settings.xp.xpPerLevel);
+        if (newLevel !== updated.level) {
+          await tx.student.update({
+            where: { id: studentId },
+            data: { level: newLevel },
+          });
+        }
+      }
     }
   }
 }
 
 export async function processGradeXp(studentId: string, value: number, subject: string) {
-  const baseXp = Math.round(value * XP_PER_GRADE_POINT);
+  const settings = await getSchoolSettingsForStudent(studentId);
+  const baseXp = Math.round(value * settings.xp.perGradePoint);
   let bonus = 0;
-  if (value >= XP_GRADE_BONUS_THRESHOLD) bonus = XP_GRADE_BONUS;
+  if (value >= settings.xp.gradeBonusThreshold) bonus = settings.xp.gradeBonus;
 
   await awardXp(
     studentId,
     baseXp + bonus,
     bonus > 0 ? `Nota ${value} em ${subject} (+ bônus)` : `Nota ${value} em ${subject}`,
-    "grade"
+    "grade",
+    0,
+    settings
   );
 }
 
-export async function processAttendanceXp(studentId: string, status: string) {
-  if (status === "present") {
-    await awardXp(studentId, XP_ATTENDANCE_PRESENT, "Presença registrada", "attendance");
-  } else if (status === "late") {
-    await awardXp(studentId, XP_ATTENDANCE_LATE, "Presença com atraso", "attendance");
+export function attendanceXpForStatus(status: string, settings: SchoolSettings) {
+  if (status === "present") return settings.xp.attendancePresent;
+  if (status === "late") return settings.xp.attendanceLate;
+  return 0;
+}
+
+export async function processAttendanceXp(
+  studentId: string,
+  status: string,
+  previousStatus?: string | null
+) {
+  const settings = await getSchoolSettingsForStudent(studentId);
+  const nextXp = attendanceXpForStatus(status, settings);
+  const prevXp = previousStatus ? attendanceXpForStatus(previousStatus, settings) : 0;
+  const delta = nextXp - prevXp;
+
+  if (delta > 0) {
+    await awardXp(
+      studentId,
+      delta,
+      status === "present" ? "Presença registrada" : "Presença com atraso",
+      "attendance",
+      0,
+      settings
+    );
   }
 }
 

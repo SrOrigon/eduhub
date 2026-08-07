@@ -4,8 +4,14 @@ import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { awardXp } from "@/lib/gamification";
-import { notifyStudent, notifyStudentParents, notifyUser } from "@/lib/notifications";
+import {
+  canNotifyTeacherSubmission,
+  notifyStudent,
+  notifyStudentParents,
+  notifyUser,
+} from "@/lib/notifications";
 import { parseOptions, type ChoiceOption, type ExerciseKind, type QuestionType } from "@/lib/exercises";
+import { getSchoolSettings } from "@/lib/school-settings";
 
 function revalidateExercises() {
   [
@@ -110,7 +116,8 @@ export async function createExerciseAction(formData: FormData) {
         s.id,
         kind === "exam" ? "Nova prova do filho(a)" : "Novo exercício do filho(a)",
         `${title} · ${exercise.classGroup?.name ?? "Turma"}`,
-        `/dashboard/responsavel/filho/${s.id}`
+        `/dashboard/responsavel/filho/${s.id}`,
+        "exercise"
       );
     }
 
@@ -221,8 +228,12 @@ export async function submitExerciseAction(formData: FormData) {
     return { error: "Respostas inválidas." };
   }
 
-  const allChoice = exercise.questions.every((q) => q.type === "choice");
+  const settings = await getSchoolSettings(user.schoolId);
+  const allChoice =
+    settings.exercises.autoGradeEnabled &&
+    exercise.questions.every((q) => q.type === "choice");
   const maxScore = exercise.questions.reduce((s, q) => s + q.points, 0);
+  const maxGrade = settings.academic.maxGrade;
 
   const answerRows = exercise.questions.map((q) => {
     const a = answers[q.id] ?? {};
@@ -298,23 +309,24 @@ export async function submitExerciseAction(formData: FormData) {
       submissionId = sub.id;
     }
 
-    if (allChoice && autoScore != null) {
-      await tx.grade.create({
-        data: {
-          studentId: student.id,
-          subject: exercise.kind === "exam" ? "Prova" : "Exercício",
-          value: maxScore > 0 ? (autoScore / maxScore) * 10 : 0,
-          maxValue: 10,
-          period: exercise.title.slice(0, 40),
-          teacherId: exercise.teacherId,
-        },
-      });
-    }
   });
 
   const studentName = user.fullName;
 
   if (allChoice && autoScore != null) {
+    if (settings.exercises.postGradeToBulletin) {
+      await prisma.grade.create({
+        data: {
+          studentId: student.id,
+          subject: exercise.kind === "exam" ? "Prova" : "Exercício",
+          value: maxScore > 0 ? (autoScore / maxScore) * maxGrade : 0,
+          maxValue: maxGrade,
+          period: exercise.title.slice(0, 40),
+          teacherId: exercise.teacherId,
+        },
+      });
+    }
+
     const ratio = maxScore > 0 ? autoScore / maxScore : 0;
     const xp = Math.round(exercise.xpReward * ratio);
     const coins = Math.round(exercise.coinReward * ratio);
@@ -323,8 +335,9 @@ export async function submitExerciseAction(formData: FormData) {
         student.id,
         xp,
         `${exercise.kind === "exam" ? "Prova" : "Exercício"}: ${exercise.title} (${autoScore.toFixed(1)}/${maxScore})`,
-        "manual",
-        coins
+        "exercise",
+        coins,
+        settings
       );
     }
 
@@ -338,26 +351,32 @@ export async function submitExerciseAction(formData: FormData) {
       student.id,
       "Atividade corrigida automaticamente",
       `${studentName} · ${exercise.title}: ${autoScore.toFixed(1)}/${maxScore} pts`,
-      `/dashboard/responsavel/filho/${student.id}`
+      `/dashboard/responsavel/filho/${student.id}`,
+      "exerciseGraded"
     );
-    await notifyUser(
-      exercise.teacherId,
-      "Entrega auto-corrigida",
-      `${studentName} concluiu "${exercise.title}" (${autoScore.toFixed(1)}/${maxScore})`,
-      `/dashboard/exercicios/${exerciseId}`
-    );
+    if (await canNotifyTeacherSubmission(user.schoolId)) {
+      await notifyUser(
+        exercise.teacherId,
+        "Entrega auto-corrigida",
+        `${studentName} concluiu "${exercise.title}" (${autoScore.toFixed(1)}/${maxScore})`,
+        `/dashboard/exercicios/${exerciseId}`
+      );
+    }
   } else {
-    await notifyUser(
-      exercise.teacherId,
-      "Nova entrega para corrigir",
-      `${studentName} enviou "${exercise.title}"`,
-      `/dashboard/exercicios/${exerciseId}`
-    );
+    if (await canNotifyTeacherSubmission(user.schoolId)) {
+      await notifyUser(
+        exercise.teacherId,
+        "Nova entrega para corrigir",
+        `${studentName} enviou "${exercise.title}"`,
+        `/dashboard/exercicios/${exerciseId}`
+      );
+    }
     await notifyStudentParents(
       student.id,
       "Atividade enviada",
       `${studentName} entregou: ${exercise.title}`,
-      `/dashboard/responsavel/filho/${student.id}`
+      `/dashboard/responsavel/filho/${student.id}`,
+      "exercise"
     );
   }
 
@@ -402,6 +421,8 @@ export async function gradeSubmissionAction(formData: FormData) {
 
   let totalScore = 0;
   const maxScore = submission.exercise.questions.reduce((s, q) => s + q.points, 0);
+  const settings = await getSchoolSettings(user.schoolId);
+  const maxGrade = settings.academic.maxGrade;
 
   await prisma.$transaction(async (tx) => {
     for (const answer of submission.answers) {
@@ -429,31 +450,34 @@ export async function gradeSubmissionAction(formData: FormData) {
       },
     });
 
-    const ratio = maxScore > 0 ? totalScore / maxScore : 0;
-    const xp = Math.round(submission.exercise.xpReward * ratio);
-    const coins = Math.round(submission.exercise.coinReward * ratio);
-
-    if (xp > 0 || coins > 0) {
-      await awardXp(
-        submission.studentId,
-        xp,
-        `${submission.exercise.kind === "exam" ? "Prova" : "Exercício"}: ${submission.exercise.title} (${totalScore.toFixed(1)}/${maxScore})`,
-        "manual",
-        coins
-      );
+    if (settings.exercises.postGradeToBulletin) {
+      await tx.grade.create({
+        data: {
+          studentId: submission.studentId,
+          subject: submission.exercise.kind === "exam" ? "Prova" : "Exercício",
+          value: maxScore > 0 ? (totalScore / maxScore) * maxGrade : 0,
+          maxValue: maxGrade,
+          period: submission.exercise.title.slice(0, 40),
+          teacherId: user.id,
+        },
+      });
     }
-
-    await tx.grade.create({
-      data: {
-        studentId: submission.studentId,
-        subject: submission.exercise.kind === "exam" ? "Prova" : "Exercício",
-        value: maxScore > 0 ? (totalScore / maxScore) * 10 : 0,
-        maxValue: 10,
-        period: submission.exercise.title.slice(0, 40),
-        teacherId: user.id,
-      },
-    });
   });
+
+  const ratio = maxScore > 0 ? totalScore / maxScore : 0;
+  const xp = Math.round(submission.exercise.xpReward * ratio);
+  const coins = Math.round(submission.exercise.coinReward * ratio);
+
+  if (xp > 0 || coins > 0) {
+    await awardXp(
+      submission.studentId,
+      xp,
+      `${submission.exercise.kind === "exam" ? "Prova" : "Exercício"}: ${submission.exercise.title} (${totalScore.toFixed(1)}/${maxScore})`,
+      "exercise",
+      coins,
+      settings
+    );
+  }
 
   await notifyStudent(
     submission.studentId,
@@ -465,7 +489,8 @@ export async function gradeSubmissionAction(formData: FormData) {
     submission.studentId,
     "Atividade corrigida",
     `${submission.exercise.title}: ${totalScore.toFixed(1)}/${maxScore} pts`,
-    `/dashboard/responsavel/filho/${submission.studentId}`
+    `/dashboard/responsavel/filho/${submission.studentId}`,
+    "exerciseGraded"
   );
 
   revalidateExercises();

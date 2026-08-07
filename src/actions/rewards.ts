@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { notifyStudent, notifyStudentParents } from "@/lib/notifications";
+import { getSchoolSettings } from "@/lib/school-settings";
 
 function revalidateLoja() {
   ["/dashboard/loja", "/dashboard/aluno", "/dashboard/gamificacao", "/dashboard/notificacoes"].forEach((p) =>
@@ -85,6 +86,10 @@ export async function redeemRewardAction(formData: FormData) {
     return { error: `Moedas insuficientes. Você tem ${student.coins}, precisa de ${reward.coinCost}.` };
   }
 
+  const settings = await getSchoolSettings(user.schoolId);
+  if (settings.shop.requireStock && reward.stock === null) {
+    return { error: "Esta escola exige estoque definido para resgates." };
+  }
   if (reward.stock !== null && reward.stock <= 0) {
     return { error: "Recompensa esgotada." };
   }
@@ -117,7 +122,8 @@ export async function redeemRewardAction(formData: FormData) {
     studentId,
     "Resgate na loja",
     `Resgate pendente: ${reward.name} (${reward.coinCost} moedas)`,
-    `/dashboard/responsavel/filho/${studentId}`
+    `/dashboard/responsavel/filho/${studentId}`,
+    "shop"
   );
 
   revalidateLoja();
@@ -126,6 +132,10 @@ export async function redeemRewardAction(formData: FormData) {
 
 export async function fulfillRedemptionAction(formData: FormData) {
   const user = await requireSession(["admin", "director", "teacher"]);
+  const settings = await getSchoolSettings(user.schoolId);
+  if (user.role === "teacher" && !settings.shop.teachersCanFulfill) {
+    return { error: "Professores não podem marcar entrega nesta escola." };
+  }
   const redemptionId = String(formData.get("redemptionId") ?? "");
   if (!redemptionId) return { error: "Resgate inválido." };
 
@@ -156,7 +166,8 @@ export async function fulfillRedemptionAction(formData: FormData) {
     redemption.studentId,
     "Prêmio entregue",
     `${redemption.reward.name} foi entregue na escola.`,
-    `/dashboard/responsavel/filho/${redemption.studentId}`
+    `/dashboard/responsavel/filho/${redemption.studentId}`,
+    "shop"
   );
 
   revalidateLoja();

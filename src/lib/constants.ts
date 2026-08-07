@@ -1,6 +1,6 @@
 export type UserRole = "admin" | "director" | "teacher" | "student" | "parent";
 export type AttendanceStatus = "present" | "absent" | "late" | "justified";
-export type XpSource = "grade" | "attendance" | "mission" | "badge" | "manual";
+export type XpSource = "grade" | "attendance" | "mission" | "badge" | "manual" | "exercise";
 
 export const USER_ROLES: UserRole[] = ["admin", "director", "teacher", "student", "parent"];
 export const ATTENDANCE_STATUSES: AttendanceStatus[] = ["present", "absent", "late", "justified"];

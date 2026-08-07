@@ -12,7 +12,15 @@ interface ClassOption {
   name: string;
 }
 
-export function CreateMissionForm({ classes }: { classes: ClassOption[] }) {
+export function CreateMissionForm({
+  classes,
+  defaultXp = 100,
+  defaultCoins = 30,
+}: {
+  classes: ClassOption[];
+  defaultXp?: number;
+  defaultCoins?: number;
+}) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(
     async (_prev: { error?: string; success?: boolean } | null, formData: FormData) => {
@@ -39,11 +47,11 @@ export function CreateMissionForm({ classes }: { classes: ClassOption[] }) {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <Label htmlFor="xpReward">XP</Label>
-              <Input id="xpReward" name="xpReward" type="number" defaultValue={100} />
+              <Input id="xpReward" name="xpReward" type="number" defaultValue={defaultXp} />
             </div>
             <div>
               <Label htmlFor="coinReward">Moedas</Label>
-              <Input id="coinReward" name="coinReward" type="number" defaultValue={30} />
+              <Input id="coinReward" name="coinReward" type="number" defaultValue={defaultCoins} />
             </div>
           </div>
           <div>

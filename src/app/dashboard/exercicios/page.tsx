@@ -1,5 +1,6 @@
 import { getSessionUser } from "@/lib/auth";
 import { getExercisesForUser, getTeacherClasses } from "@/lib/exercises";
+import { getSchoolSettings } from "@/lib/school-settings";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,9 +17,10 @@ export default async function ExerciciosPage() {
   if (user.role === "parent") redirect("/dashboard/responsavel");
 
   const isStaff = user.role === "admin" || user.role === "director" || user.role === "teacher";
-  const [exercises, classes] = await Promise.all([
+  const [exercises, classes, settings] = await Promise.all([
     getExercisesForUser(user),
     isStaff ? getTeacherClasses(user) : Promise.resolve([]),
+    getSchoolSettings(user.schoolId),
   ]);
 
   const pendingGrades = isStaff
@@ -39,7 +41,9 @@ export default async function ExerciciosPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Exercícios" description={description}>
-        {isStaff && classes.length > 0 && <CreateExerciseForm classes={classes} />}
+        {isStaff && classes.length > 0 && (
+          <CreateExerciseForm classes={classes} presets={settings.exercises.presets} />
+        )}
       </PageHeader>
 
       {isStaff && exercises.length > 0 && (
@@ -71,10 +75,13 @@ export default async function ExerciciosPage() {
           <CardContent className="flex items-start gap-3 py-4">
             <ClipboardCheck className="mt-0.5 h-5 w-5 shrink-0 text-indigo-600" aria-hidden="true" />
             <div className="text-sm text-slate-700">
-              <p className="font-semibold text-slate-900">Dica rápida</p>
+              <p className="font-semibold text-slate-900">Regras da escola</p>
               <p className="mt-1">
-                Use &quot;Aplicar gabarito&quot; na correção para questões de múltipla escolha — você
-                só precisa revisar as respostas abertas manualmente.
+                Auto-correção {settings.exercises.autoGradeEnabled ? "ligada" : "desligada"}
+                {" · "}
+                Boletim {settings.exercises.postGradeToBulletin ? "recebe nota" : "não recebe nota"}
+                {" · "}
+                Use &quot;Aplicar gabarito&quot; nas respostas abertas.
               </p>
             </div>
           </CardContent>

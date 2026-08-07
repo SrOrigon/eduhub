@@ -34,17 +34,30 @@ function newQuestion(type: QuestionType = "choice"): DraftQuestion {
   };
 }
 
-const PRESETS = [
+type Preset = { label: string; xp: number; coins: number; points: number };
+
+const DEFAULT_PRESETS: Preset[] = [
   { label: "Leve", xp: 50, coins: 15, points: 5 },
   { label: "Médio", xp: 80, coins: 25, points: 10 },
   { label: "Prova", xp: 150, coins: 40, points: 10 },
 ];
 
-export function CreateExerciseForm({ classes }: { classes: ClassOption[] }) {
+export function CreateExerciseForm({
+  classes,
+  presets = DEFAULT_PRESETS,
+}: {
+  classes: ClassOption[];
+  presets?: Preset[];
+}) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [questions, setQuestions] = useState<DraftQuestion[]>([newQuestion()]);
-  const [rewards, setRewards] = useState({ xp: 80, coins: 25, maxPoints: 10 });
+  const mid = presets[1] ?? presets[0] ?? DEFAULT_PRESETS[1];
+  const [rewards, setRewards] = useState({
+    xp: mid.xp,
+    coins: mid.coins,
+    maxPoints: mid.points,
+  });
 
   const [state, formAction, pending] = useActionState(
     async (_prev: { error?: string; success?: boolean } | null, formData: FormData) => {
@@ -57,7 +70,7 @@ export function CreateExerciseForm({ classes }: { classes: ClassOption[] }) {
         setOpen(false);
         setStep(1);
         setQuestions([newQuestion()]);
-        setRewards({ xp: 80, coins: 25, maxPoints: 10 });
+        setRewards({ xp: mid.xp, coins: mid.coins, maxPoints: mid.points });
       }
       return result;
     },
@@ -139,7 +152,7 @@ export function CreateExerciseForm({ classes }: { classes: ClassOption[] }) {
             <>
               <p className="text-sm text-slate-600">Escolha um preset ou ajuste manualmente:</p>
               <div className="flex flex-wrap gap-2">
-                {PRESETS.map((p) => (
+                {presets.map((p) => (
                   <Button
                     key={p.label}
                     type="button"

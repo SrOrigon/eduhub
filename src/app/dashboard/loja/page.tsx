@@ -11,13 +11,16 @@ import { FulfillRedemptionButton } from "@/components/forms/fulfill-redemption-b
 import { redirect } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import { isKidFriendlyRole } from "@/lib/constants";
+import { getSchoolSettings } from "@/lib/school-settings";
 
 export default async function LojaPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
   const isAdmin = user.role === "admin" || user.role === "director";
-  const isStaff = isAdmin || user.role === "teacher";
+  const settings = await getSchoolSettings(user.schoolId);
+  const isStaff =
+    isAdmin || (user.role === "teacher" && settings.shop.teachersCanFulfill);
   const isStudent = user.role === "student";
   const kidFriendly = isKidFriendlyRole(user.role);
 

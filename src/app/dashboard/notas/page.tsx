@@ -1,5 +1,6 @@
 import { getSessionUser } from "@/lib/auth";
 import { getGrades, getStudents } from "@/lib/queries";
+import { getSchoolSettings } from "@/lib/school-settings";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CreateGradeForm } from "@/components/forms/create-grade-form";
@@ -9,9 +10,9 @@ import { ResponsiveTable } from "@/components/ui/responsive-table";
 import { redirect } from "next/navigation";
 import { BookOpen } from "lucide-react";
 
-function gradeVariant(value: number) {
-  if (value >= 7) return "success" as const;
-  if (value >= 5) return "warning" as const;
+function gradeVariant(value: number, passGrade: number) {
+  if (value >= passGrade) return "success" as const;
+  if (value >= passGrade - 2) return "warning" as const;
   return "danger" as const;
 }
 
@@ -20,9 +21,10 @@ export default async function NotasPage() {
   if (!user) redirect("/login");
   if (user.role === "student") redirect("/dashboard/aluno");
 
-  const [grades, students] = await Promise.all([
+  const [grades, students, settings] = await Promise.all([
     getGrades(user.schoolId),
     getStudents(user.schoolId),
+    getSchoolSettings(user.schoolId),
   ]);
 
   const studentOptions = students.map((s) => ({
@@ -32,8 +34,16 @@ export default async function NotasPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Notas" description="Lançamento com crédito automático de XP">
-        <CreateGradeForm students={studentOptions} />
+      <PageHeader
+        title="Notas"
+        description={`Lançamento com XP automático (${settings.xp.perGradePoint} XP/ponto · bônus ≥${settings.xp.gradeBonusThreshold})`}
+      >
+        <CreateGradeForm
+          students={studentOptions}
+          subjects={settings.academic.subjects}
+          periods={settings.academic.periods}
+          maxGrade={settings.academic.maxGrade}
+        />
       </PageHeader>
 
       <Card>
@@ -68,7 +78,7 @@ export default async function NotasPage() {
                       {grade.createdAt.toLocaleDateString("pt-BR")}
                     </td>
                     <td className="py-3">
-                      <Badge variant={gradeVariant(grade.value)}>
+                      <Badge variant={gradeVariant(grade.value, settings.academic.passGrade)}>
                         {grade.value.toFixed(1)} / {grade.maxValue}
                       </Badge>
                     </td>

@@ -2,6 +2,7 @@ import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getRanking } from "@/lib/queries";
 import { getExercisesForUser } from "@/lib/exercises";
+import { getSchoolSettings } from "@/lib/school-settings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/layout/page-header";
@@ -9,7 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { redirect } from "next/navigation";
-import { BookOpen, ClipboardList, Users, Medal, PenLine, AlertCircle } from "lucide-react";
+import { BookOpen, ClipboardList, Users, Medal, PenLine, AlertCircle, Settings2 } from "lucide-react";
 
 export default async function TeacherDashboardPage() {
   const user = await getSessionUser();
@@ -25,9 +26,10 @@ export default async function TeacherDashboardPage() {
   });
 
   const totalStudents = myClasses.reduce((s, c) => s + c._count.students, 0);
-  const [ranking, exercises] = await Promise.all([
+  const [ranking, exercises, settings] = await Promise.all([
     getRanking(user.schoolId),
     getExercisesForUser(user),
+    getSchoolSettings(user.schoolId),
   ]);
 
   const pendingGrades = exercises.reduce(
@@ -44,6 +46,24 @@ export default async function TeacherDashboardPage() {
         title="Painel do Professor"
         description={`Olá, ${user.fullName}! Gerencie suas turmas e acompanhe o engajamento.`}
       />
+
+      <Card className="border-slate-200 bg-slate-50/80">
+        <CardContent className="flex flex-wrap items-start gap-3 py-4">
+          <Settings2 className="mt-0.5 h-5 w-5 shrink-0 text-slate-600" aria-hidden="true" />
+          <div className="text-sm text-slate-700">
+            <p className="font-semibold text-slate-900">Regras ativas da escola</p>
+            <p className="mt-1">
+              {settings.xp.perGradePoint} XP/ponto de nota
+              {" · "}
+              presença +{settings.xp.attendancePresent} XP
+              {" · "}
+              auto-correção {settings.exercises.autoGradeEnabled ? "ligada" : "off"}
+              {" · "}
+              missões padrão {settings.missions.defaultXp} XP / {settings.missions.defaultCoins} moedas
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>

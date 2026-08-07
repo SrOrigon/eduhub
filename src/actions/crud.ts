@@ -11,7 +11,14 @@ import {
   notifyClassTeacher,
   notifyUser,
 } from "@/lib/notifications";
-import { SUBJECTS, PERIODS, ATTENDANCE_LABELS, type AttendanceStatus } from "@/lib/constants";
+import { ATTENDANCE_LABELS, type AttendanceStatus } from "@/lib/constants";
+import {
+  getSchoolSettings,
+  mergeSchoolSettings,
+  parseSchoolSettings,
+  stringifySchoolSettings,
+  type SchoolSettings,
+} from "@/lib/school-settings";
 
 function revalidateAll() {
   [
@@ -85,15 +92,19 @@ export async function createGradeAction(formData: FormData) {
   const user = await requireSession(["admin", "director", "teacher"]);
   if (!user.schoolId) return { error: "Escola não configurada." };
 
+  const settings = await getSchoolSettings(user.schoolId);
   const studentId = String(formData.get("studentId") ?? "");
   const subject = String(formData.get("subject") ?? "");
   const value = parseFloat(String(formData.get("value") ?? "0"));
-  const period = String(formData.get("period") ?? "1º Bimestre");
+  const period = String(formData.get("period") ?? settings.academic.periods[0] ?? "1º Bimestre");
+  const maxGrade = settings.academic.maxGrade;
 
   if (!studentId || !subject || isNaN(value)) {
     return { error: "Preencha todos os campos." };
   }
-  if (value < 0 || value > 10) return { error: "Nota deve ser entre 0 e 10." };
+  if (value < 0 || value > maxGrade) {
+    return { error: `Nota deve ser entre 0 e ${maxGrade}.` };
+  }
 
   const student = await prisma.student.findFirst({
     where: { id: studentId, user: { schoolId: user.schoolId } },
@@ -122,7 +133,8 @@ export async function createGradeAction(formData: FormData) {
     studentId,
     "Nota do filho(a)",
     `${subject}: ${value.toFixed(1)} (${period})`,
-    `/dashboard/responsavel/filho/${studentId}`
+    `/dashboard/responsavel/filho/${studentId}`,
+    "grade"
   );
 
   revalidateAll();
@@ -146,7 +158,7 @@ export async function recordAttendanceAction(formData: FormData) {
     where: { studentId_date: { studentId, date } },
   });
 
-  const previousStatus = existing?.status;
+  const previousStatus = existing?.status ?? null;
   if (existing) {
     await prisma.attendance.update({
       where: { id: existing.id },
@@ -156,7 +168,10 @@ export async function recordAttendanceAction(formData: FormData) {
     await prisma.attendance.create({
       data: { studentId, classId, date, status },
     });
-    await processAttendanceXp(studentId, status);
+  }
+
+  if (previousStatus !== status) {
+    await processAttendanceXp(studentId, status, previousStatus);
   }
 
   if (
@@ -174,14 +189,16 @@ export async function recordAttendanceAction(formData: FormData) {
         studentId,
         status === "absent" ? "Falta registrada" : "Atraso registrado",
         `${student.user.fullName}: ${label} em ${when}`,
-        `/dashboard/responsavel/filho/${studentId}`
+        `/dashboard/responsavel/filho/${studentId}`,
+        "absence"
       );
       if (status === "absent") {
         await notifyStudent(
           studentId,
           "Falta registrada",
           `Falta em ${when}. Fale com a secretaria se houver justificativa.`,
-          "/dashboard/aluno"
+          "/dashboard/aluno",
+          "absence"
         );
       }
     }
@@ -195,10 +212,17 @@ export async function createMissionAction(formData: FormData) {
   const user = await requireSession(["admin", "director", "teacher"]);
   if (!user.schoolId) return { error: "Escola não configurada." };
 
+  const settings = await getSchoolSettings(user.schoolId);
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
-  const xpReward = parseInt(String(formData.get("xpReward") ?? "100"), 10);
-  const coinReward = parseInt(String(formData.get("coinReward") ?? "30"), 10);
+  const xpReward = parseInt(
+    String(formData.get("xpReward") ?? String(settings.missions.defaultXp)),
+    10
+  );
+  const coinReward = parseInt(
+    String(formData.get("coinReward") ?? String(settings.missions.defaultCoins)),
+    10
+  );
   const classId = String(formData.get("classId") ?? "") || null;
   const dueDateStr = String(formData.get("dueDate") ?? "");
 
@@ -317,7 +341,8 @@ export async function completeMissionAction(formData: FormData) {
         studentId,
         "Missão concluída",
         `Missão "${mission.title}" foi concluída.`,
-        `/dashboard/responsavel/filho/${studentId}`
+        `/dashboard/responsavel/filho/${studentId}`,
+        "mission"
       );
     }
 
@@ -352,15 +377,18 @@ export async function bulkAttendanceAction(formData: FormData) {
       where: { studentId_date: { studentId: student.id, date } },
     });
 
-    const previousStatus = existing?.status;
+    const previousStatus = existing?.status ?? null;
     if (existing) {
       await prisma.attendance.update({ where: { id: existing.id }, data: { status } });
     } else {
       await prisma.attendance.create({
         data: { studentId: student.id, classId, date, status },
       });
-      await processAttendanceXp(student.id, status);
       registered++;
+    }
+
+    if (previousStatus !== status) {
+      await processAttendanceXp(student.id, status, previousStatus);
     }
 
     if (
@@ -378,7 +406,8 @@ export async function bulkAttendanceAction(formData: FormData) {
           student.id,
           status === "absent" ? "Falta registrada" : "Atraso registrado",
           `${st.user.fullName}: ${label} em ${when}`,
-          `/dashboard/responsavel/filho/${student.id}`
+          `/dashboard/responsavel/filho/${student.id}`,
+          "absence"
         );
       }
     }
@@ -500,13 +529,65 @@ export async function updateSchoolAction(formData: FormData) {
   const city = String(formData.get("city") ?? "").trim();
   const state = String(formData.get("state") ?? "").trim();
 
+  if (!name) return { error: "Nome da escola é obrigatório." };
+
   await prisma.school.update({
     where: { id: user.schoolId },
     data: { name, city, state },
   });
 
   revalidatePath("/dashboard/configuracoes");
+  revalidatePath("/dashboard");
   return { success: true };
 }
 
-export { SUBJECTS, PERIODS };
+export async function updateSchoolSettingsAction(formData: FormData) {
+  const user = await requireSession(["admin", "director"]);
+  if (!user.schoolId) return { error: "Escola não configurada." };
+
+  const raw = String(formData.get("settingsJson") ?? "");
+  if (!raw) return { error: "Configurações inválidas." };
+
+  let patch: Partial<SchoolSettings>;
+  try {
+    patch = JSON.parse(raw) as Partial<SchoolSettings>;
+  } catch {
+    return { error: "JSON de configurações inválido." };
+  }
+
+  const school = await prisma.school.findUnique({ where: { id: user.schoolId } });
+  if (!school) return { error: "Escola não encontrada." };
+
+  const current = parseSchoolSettings(school.settings);
+  const merged = mergeSchoolSettings(current, patch);
+
+  if (merged.academic.subjects.length === 0) {
+    return { error: "Informe ao menos uma disciplina." };
+  }
+  if (merged.academic.periods.length === 0) {
+    return { error: "Informe ao menos um período." };
+  }
+  if (merged.xp.xpPerLevel < 50) {
+    return { error: "XP por nível deve ser no mínimo 50." };
+  }
+  if (merged.academic.maxGrade <= 0) {
+    return { error: "Nota máxima inválida." };
+  }
+
+  await prisma.school.update({
+    where: { id: user.schoolId },
+    data: { settings: stringifySchoolSettings(merged) },
+  });
+
+  [
+    "/dashboard/configuracoes",
+    "/dashboard/notas",
+    "/dashboard/gamificacao",
+    "/dashboard/exercicios",
+    "/dashboard/aluno",
+    "/dashboard/professor",
+    "/dashboard/loja",
+  ].forEach((p) => revalidatePath(p));
+
+  return { success: true };
+}

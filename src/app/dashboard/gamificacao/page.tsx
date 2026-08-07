@@ -9,6 +9,7 @@ import { StaffCompleteMissionForm } from "@/components/forms/staff-complete-miss
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getClasses } from "@/lib/queries";
+import { getSchoolSettings } from "@/lib/school-settings";
 import { redirect } from "next/navigation";
 
 const iconMap = { clock: Clock, star: Star, target: Target };
@@ -18,12 +19,13 @@ export default async function GamificacaoPage() {
   if (!user) redirect("/login");
   if (user.role === "student") redirect("/dashboard/aluno");
 
-  const [missions, badges, ranking, classes, students] = await Promise.all([
+  const [missions, badges, ranking, classes, students, settings] = await Promise.all([
     getMissions(user.schoolId),
     getBadges(user.schoolId),
     getRanking(user.schoolId),
     getClasses(user.schoolId),
     getStudents(user.schoolId),
+    getSchoolSettings(user.schoolId),
   ]);
 
   const classOptions = classes.map((c) => ({ id: c.id, name: c.name }));
@@ -41,7 +43,13 @@ export default async function GamificacaoPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Gamificação" description="Missões, XP, moedas, badges e rankings">
-        {isStaff && <CreateMissionForm classes={classOptions} />}
+        {isStaff && (
+          <CreateMissionForm
+            classes={classOptions}
+            defaultXp={settings.missions.defaultXp}
+            defaultCoins={settings.missions.defaultCoins}
+          />
+        )}
       </PageHeader>
 
       {badges.length === 0 ? (

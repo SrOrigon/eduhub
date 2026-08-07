@@ -13,6 +13,7 @@ model School {
   slug      String   @unique
   city      String?
   state     String?
+  settings  String   @default("{}")
   createdAt DateTime @default(now())
 
   users       User[]

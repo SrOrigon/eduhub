@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { createGradeAction, SUBJECTS, PERIODS } from "@/actions/crud";
+import { createGradeAction } from "@/actions/crud";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label, Select } from "@/components/ui/form-fields";
@@ -12,7 +12,17 @@ interface StudentOption {
   name: string;
 }
 
-export function CreateGradeForm({ students }: { students: StudentOption[] }) {
+export function CreateGradeForm({
+  students,
+  subjects,
+  periods,
+  maxGrade = 10,
+}: {
+  students: StudentOption[];
+  subjects: string[];
+  periods: string[];
+  maxGrade?: number;
+}) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(
     async (_prev: { error?: string; success?: boolean } | null, formData: FormData) => {
@@ -40,19 +50,27 @@ export function CreateGradeForm({ students }: { students: StudentOption[] }) {
           <div>
             <Label htmlFor="subject">Disciplina</Label>
             <Select id="subject" name="subject" required>
-              {SUBJECTS.map((s) => (
+              {subjects.map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </Select>
           </div>
           <div>
-            <Label htmlFor="value">Nota (0-10)</Label>
-            <Input id="value" name="value" type="number" step="0.1" min="0" max="10" required />
+            <Label htmlFor="value">Nota (0-{maxGrade})</Label>
+            <Input
+              id="value"
+              name="value"
+              type="number"
+              step="0.1"
+              min="0"
+              max={maxGrade}
+              required
+            />
           </div>
           <div>
             <Label htmlFor="period">Período</Label>
             <Select id="period" name="period" required>
-              {PERIODS.map((p) => (
+              {periods.map((p) => (
                 <option key={p} value={p}>{p}</option>
               ))}
             </Select>

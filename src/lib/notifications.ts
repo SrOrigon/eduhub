@@ -1,4 +1,34 @@
 import { prisma } from "@/lib/db";
+import { getSchoolSettings, type SchoolSettings } from "@/lib/school-settings";
+
+export type NotifyKind =
+  | "grade"
+  | "absence"
+  | "mission"
+  | "shop"
+  | "exercise"
+  | "exerciseGraded"
+  | "submission"
+  | "general";
+
+function parentsAllowed(kind: NotifyKind, settings: SchoolSettings) {
+  switch (kind) {
+    case "grade":
+      return settings.notifications.parentsOnGrade;
+    case "absence":
+      return settings.notifications.parentsOnAbsence;
+    case "mission":
+      return settings.notifications.parentsOnMission;
+    case "shop":
+      return settings.notifications.parentsOnShop;
+    case "exercise":
+      return settings.notifications.parentsOnExercise;
+    case "exerciseGraded":
+      return settings.notifications.parentsOnExerciseGraded;
+    default:
+      return true;
+  }
+}
 
 export async function createNotification(
   userId: string,
@@ -16,16 +46,43 @@ export async function notifyUser(userId: string, title: string, message: string,
   await createNotification(userId, title, message, href);
 }
 
-export async function notifyStudent(studentId: string, title: string, message: string, href?: string) {
+export async function notifyStudent(
+  studentId: string,
+  title: string,
+  message: string,
+  href?: string,
+  kind: NotifyKind = "general"
+) {
   const student = await prisma.student.findUnique({
     where: { id: studentId },
-    select: { userId: true },
+    select: { userId: true, user: { select: { schoolId: true } } },
   });
   if (!student) return;
+
+  if (kind === "absence") {
+    const settings = await getSchoolSettings(student.user.schoolId);
+    if (!settings.notifications.studentOnAbsence) return;
+  }
+
   await createNotification(student.userId, title, message, href);
 }
 
-export async function notifyStudentParents(studentId: string, title: string, message: string, href?: string) {
+export async function notifyStudentParents(
+  studentId: string,
+  title: string,
+  message: string,
+  href?: string,
+  kind: NotifyKind = "general"
+) {
+  const student = await prisma.student.findUnique({
+    where: { id: studentId },
+    select: { user: { select: { schoolId: true } } },
+  });
+  if (!student) return;
+
+  const settings = await getSchoolSettings(student.user.schoolId);
+  if (!parentsAllowed(kind, settings)) return;
+
   const links = await prisma.parentStudent.findMany({
     where: { studentId },
     select: { parentId: true },
@@ -49,4 +106,9 @@ export async function notifyClassTeacher(
   if (turma?.teacherId) {
     await createNotification(turma.teacherId, title, message, href);
   }
+}
+
+export async function canNotifyTeacherSubmission(schoolId: string | null | undefined) {
+  const settings = await getSchoolSettings(schoolId);
+  return settings.notifications.teacherOnSubmission;
 }

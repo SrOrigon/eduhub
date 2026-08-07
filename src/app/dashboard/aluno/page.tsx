@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { getRanking, getMissionsForStudent } from "@/lib/queries";
 import { getExercisesForUser } from "@/lib/exercises";
 import { getXpProgress } from "@/lib/gamification";
+import { getSchoolSettings } from "@/lib/school-settings";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/page-header";
@@ -42,11 +43,12 @@ export default async function AlunoPortalPage() {
     );
   }
 
-  const [schoolRanking, classRanking, missions, exercises] = await Promise.all([
+  const [schoolRanking, classRanking, missions, exercises, settings] = await Promise.all([
     getRanking(user.schoolId),
     getRanking(user.schoolId, student.classId),
     getMissionsForStudent(user.schoolId, student.classId),
     getExercisesForUser(user),
+    getSchoolSettings(user.schoolId),
   ]);
 
   const enrichedExercises = exercises.map((ex) => {
@@ -102,7 +104,10 @@ export default async function AlunoPortalPage() {
       ? student.grades.reduce((s, g) => s + g.value, 0) / student.grades.length
       : 0;
 
-  const { percent: xpProgress, xpForNextLevel } = getXpProgress(student.xpTotal);
+  const { percent: xpProgress, xpForNextLevel } = getXpProgress(
+    student.xpTotal,
+    settings.xp.xpPerLevel
+  );
   const firstName = user.fullName.split(" ")[0];
 
   return (
