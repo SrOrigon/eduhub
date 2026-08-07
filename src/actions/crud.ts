@@ -5,8 +5,13 @@ import bcrypt from "bcryptjs";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { processGradeXp, processAttendanceXp, completeMission } from "@/lib/gamification";
-import { notifyStudent, notifyStudentParents } from "@/lib/notifications";
-import { SUBJECTS, PERIODS } from "@/lib/constants";
+import {
+  notifyStudent,
+  notifyStudentParents,
+  notifyClassTeacher,
+  notifyUser,
+} from "@/lib/notifications";
+import { SUBJECTS, PERIODS, ATTENDANCE_LABELS, type AttendanceStatus } from "@/lib/constants";
 
 function revalidateAll() {
   [
@@ -141,6 +146,7 @@ export async function recordAttendanceAction(formData: FormData) {
     where: { studentId_date: { studentId, date } },
   });
 
+  const previousStatus = existing?.status;
   if (existing) {
     await prisma.attendance.update({
       where: { id: existing.id },
@@ -151,6 +157,34 @@ export async function recordAttendanceAction(formData: FormData) {
       data: { studentId, classId, date, status },
     });
     await processAttendanceXp(studentId, status);
+  }
+
+  if (
+    (status === "absent" || status === "late") &&
+    previousStatus !== status
+  ) {
+    const student = await prisma.student.findUnique({
+      where: { id: studentId },
+      include: { user: { select: { fullName: true } } },
+    });
+    const label = ATTENDANCE_LABELS[status as AttendanceStatus] ?? status;
+    const when = date.toLocaleDateString("pt-BR");
+    if (student) {
+      await notifyStudentParents(
+        studentId,
+        status === "absent" ? "Falta registrada" : "Atraso registrado",
+        `${student.user.fullName}: ${label} em ${when}`,
+        `/dashboard/responsavel/filho/${studentId}`
+      );
+      if (status === "absent") {
+        await notifyStudent(
+          studentId,
+          "Falta registrada",
+          `Falta em ${when}. Fale com a secretaria se houver justificativa.`,
+          "/dashboard/aluno"
+        );
+      }
+    }
   }
 
   revalidateAll();
@@ -318,6 +352,7 @@ export async function bulkAttendanceAction(formData: FormData) {
       where: { studentId_date: { studentId: student.id, date } },
     });
 
+    const previousStatus = existing?.status;
     if (existing) {
       await prisma.attendance.update({ where: { id: existing.id }, data: { status } });
     } else {
@@ -327,10 +362,78 @@ export async function bulkAttendanceAction(formData: FormData) {
       await processAttendanceXp(student.id, status);
       registered++;
     }
+
+    if (
+      (status === "absent" || status === "late") &&
+      previousStatus !== status
+    ) {
+      const st = await prisma.student.findUnique({
+        where: { id: student.id },
+        include: { user: { select: { fullName: true } } },
+      });
+      const label = ATTENDANCE_LABELS[status as AttendanceStatus] ?? status;
+      const when = date.toLocaleDateString("pt-BR");
+      if (st) {
+        await notifyStudentParents(
+          student.id,
+          status === "absent" ? "Falta registrada" : "Atraso registrado",
+          `${st.user.fullName}: ${label} em ${when}`,
+          `/dashboard/responsavel/filho/${student.id}`
+        );
+      }
+    }
   }
 
   revalidateAll();
   return { success: true, message: `Chamada registrada para ${students.length} alunos (${registered} novos).` };
+}
+
+export async function requestMissionCompletionAction(formData: FormData) {
+  const user = await requireSession(["student"]);
+  const missionId = String(formData.get("missionId") ?? "");
+  if (!missionId) return { error: "Missão inválida." };
+
+  const student = await prisma.student.findUnique({
+    where: { userId: user.id },
+    include: { classGroup: { select: { teacherId: true, name: true } } },
+  });
+  if (!student) return { error: "Perfil de aluno não encontrado." };
+
+  const mission = await prisma.mission.findFirst({
+    where: {
+      id: missionId,
+      schoolId: user.schoolId ?? undefined,
+      isActive: true,
+      OR: [{ classId: null }, { classId: student.classId }],
+    },
+  });
+  if (!mission) return { error: "Missão não encontrada." };
+
+  const existing = await prisma.studentMission.findUnique({
+    where: { studentId_missionId: { studentId: student.id, missionId } },
+  });
+  if (existing?.completedAt) {
+    return { error: "Esta missão já foi concluída." };
+  }
+
+  if (!existing) {
+    await prisma.studentMission.create({
+      data: { studentId: student.id, missionId },
+    });
+  }
+
+  const href = "/dashboard/gamificacao";
+  const msg = `${user.fullName} pediu confirmação da missão "${mission.title}".`;
+
+  if (student.classGroup?.teacherId) {
+    await notifyUser(student.classGroup.teacherId, "Confirmar missão", msg, href);
+  } else {
+    await notifyClassTeacher(student.classId, "Confirmar missão", msg, href);
+  }
+
+  revalidateAll();
+  revalidatePath("/dashboard/gamificacao");
+  return { success: true };
 }
 
 export async function updateStudentAction(formData: FormData) {

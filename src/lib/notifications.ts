@@ -11,6 +11,11 @@ export async function createNotification(
   });
 }
 
+export async function notifyUser(userId: string, title: string, message: string, href?: string) {
+  if (!userId) return;
+  await createNotification(userId, title, message, href);
+}
+
 export async function notifyStudent(studentId: string, title: string, message: string, href?: string) {
   const student = await prisma.student.findUnique({
     where: { id: studentId },
@@ -27,5 +32,21 @@ export async function notifyStudentParents(studentId: string, title: string, mes
   });
   for (const link of links) {
     await createNotification(link.parentId, title, message, href);
+  }
+}
+
+export async function notifyClassTeacher(
+  classId: string | null | undefined,
+  title: string,
+  message: string,
+  href?: string
+) {
+  if (!classId) return;
+  const turma = await prisma.classGroup.findUnique({
+    where: { id: classId },
+    select: { teacherId: true },
+  });
+  if (turma?.teacherId) {
+    await createNotification(turma.teacherId, title, message, href);
   }
 }

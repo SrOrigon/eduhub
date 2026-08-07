@@ -51,17 +51,20 @@ export async function getDashboardStats(schoolId: string | null) {
   };
 }
 
-export async function getRanking(schoolId: string | null) {
+export async function getRanking(schoolId: string | null, classId?: string | null) {
   if (!schoolId) return [];
 
   const students = await prisma.student.findMany({
-    where: { user: { schoolId } },
+    where: {
+      user: { schoolId },
+      ...(classId ? { classId } : {}),
+    },
     include: {
       user: { select: { fullName: true } },
       classGroup: { select: { name: true } },
     },
     orderBy: { xpTotal: "desc" },
-    take: 20,
+    take: classId ? 50 : 20,
   });
 
   return students.map((s, i) => ({

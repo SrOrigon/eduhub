@@ -37,7 +37,7 @@ const allNavItems = [
   { href: "/dashboard/frequencia", label: "Frequência", icon: ClipboardList, roles: ["admin", "director", "teacher"] },
   { href: "/dashboard/exercicios", label: "Exercícios", icon: PenLine, roles: ["admin", "director", "teacher", "student"] },
   { href: "/dashboard/gamificacao", label: "Gamificação", icon: Target, roles: ["admin", "director", "teacher"] },
-  { href: "/dashboard/loja", label: "Loja de Recompensas", icon: Gift, roles: ["admin", "director", "student"] },
+  { href: "/dashboard/loja", label: "Loja de Recompensas", icon: Gift, roles: ["admin", "director", "teacher", "student"] },
   { href: "/dashboard/responsaveis", label: "Responsáveis", icon: Heart, roles: ["admin", "director"] },
   { href: "/dashboard/relatorios", label: "Relatórios", icon: BarChart3, roles: ["admin", "director", "teacher"] },
   { href: "/dashboard/aluno", label: "Meu Perfil", icon: User, roles: ["student"] },

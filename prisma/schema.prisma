@@ -232,16 +232,19 @@ model Reward {
 }
 
 model RewardRedemption {
-  id         String   @id @default(cuid())
-  studentId  String
-  rewardId   String
-  coinCost   Int
-  redeemedAt DateTime @default(now())
+  id          String    @id @default(cuid())
+  studentId   String
+  rewardId    String
+  coinCost    Int
+  status      String    @default("pending")
+  redeemedAt  DateTime  @default(now())
+  fulfilledAt DateTime?
 
   student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
   reward  Reward  @relation(fields: [rewardId], references: [id], onDelete: Cascade)
 
   @@index([studentId])
+  @@index([status])
 }
 
 model ParentStudent {

@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { getSessionUser } from "@/lib/auth";
 import { getChildForParent } from "@/actions/parents";
+import { getExercisesForStudentId, EXERCISE_KIND_LABELS } from "@/lib/exercises";
+import {
+  ExerciseStatusBadge,
+  ExerciseRewardPills,
+  getStudentExerciseStatus,
+} from "@/components/exercises/exercise-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +15,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { formatDate } from "@/lib/utils";
 import { ATTENDANCE_LABELS, type AttendanceStatus } from "@/lib/constants";
 import { notFound, redirect } from "next/navigation";
-import { BookOpen, FileText, Gift, Medal, Target } from "lucide-react";
+import { BookOpen, FileText, Gift, Medal, Target, PenLine } from "lucide-react";
 
 function attendanceLabel(status: string) {
   return ATTENDANCE_LABELS[status as AttendanceStatus] ?? status;
@@ -29,6 +35,14 @@ export default async function FilhoDetailPage({ params }: { params: Promise<{ id
     student.grades.length > 0
       ? student.grades.reduce((s, g) => s + g.value, 0) / student.grades.length
       : 0;
+
+  const exercises = await getExercisesForStudentId(student.id, user.schoolId);
+  const exerciseItems = exercises.map((ex) => {
+    const sub = ex.submissions[0];
+    const status = getStudentExerciseStatus(sub, ex.dueDate, !!sub);
+    return { ...ex, sub, status };
+  });
+  const pendingExercises = exerciseItems.filter((e) => e.status === "pending").length;
 
   return (
     <div className="space-y-6">
@@ -64,6 +78,42 @@ export default async function FilhoDetailPage({ params }: { params: Promise<{ id
           <CardContent><p className="text-3xl font-bold">{student.studentBadges.length}</p></CardContent>
         </Card>
       </div>
+
+      {exerciseItems.length > 0 && (
+        <Card className={pendingExercises > 0 ? "border-amber-200" : ""}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <PenLine className="h-5 w-5 text-indigo-600" aria-hidden="true" />
+              Exercícios e provas
+              {pendingExercises > 0 && (
+                <Badge variant="warning">{pendingExercises} pendente(s)</Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {exerciseItems.slice(0, 8).map((ex) => (
+              <div
+                key={ex.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-100 p-3"
+              >
+                <div>
+                  <p className="font-medium">{ex.title}</p>
+                  <p className="text-xs text-slate-500">
+                    {EXERCISE_KIND_LABELS[ex.kind as keyof typeof EXERCISE_KIND_LABELS] ?? ex.kind}
+                    {ex.dueDate && ` · Prazo ${formatDate(ex.dueDate)}`}
+                  </p>
+                  <ExerciseRewardPills xp={ex.xpReward} coins={ex.coinReward} className="mt-1" />
+                </div>
+                <ExerciseStatusBadge
+                  status={ex.status}
+                  score={ex.sub?.score}
+                  maxScore={ex.sub?.maxScore}
+                />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
@@ -147,8 +197,13 @@ export default async function FilhoDetailPage({ params }: { params: Promise<{ id
               ) : (
                 <ul className="space-y-2 text-sm">
                   {student.rewardRedemptions.map((r) => (
-                    <li key={r.id} className="flex justify-between border-b border-slate-100 py-2">
-                      <span>{r.reward.name}</span>
+                    <li key={r.id} className="flex justify-between gap-2 border-b border-slate-100 py-2">
+                      <span>
+                        {r.reward.name}{" "}
+                        <Badge variant={r.status === "fulfilled" ? "success" : "warning"} className="ml-1">
+                          {r.status === "fulfilled" ? "Entregue" : "Pendente"}
+                        </Badge>
+                      </span>
                       <span className="text-amber-600">-{r.coinCost} moedas</span>
                     </li>
                   ))}

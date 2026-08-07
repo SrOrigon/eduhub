@@ -109,19 +109,58 @@ export async function redeemRewardAction(formData: FormData) {
 
   await notifyStudent(
     studentId,
-    "Resgate confirmado!",
-    `Você resgatou: ${reward.name} (-${reward.coinCost} moedas)`,
+    "Resgate solicitado!",
+    `Você resgatou: ${reward.name} (-${reward.coinCost} moedas). Aguarde a entrega na escola.`,
     "/dashboard/loja"
   );
   await notifyStudentParents(
     studentId,
     "Resgate na loja",
-    `Resgate: ${reward.name} (${reward.coinCost} moedas)`,
+    `Resgate pendente: ${reward.name} (${reward.coinCost} moedas)`,
     `/dashboard/responsavel/filho/${studentId}`
   );
 
   revalidateLoja();
-  return { success: true, message: `Resgate confirmado: ${reward.name}!` };
+  return { success: true, message: `Resgate confirmado: ${reward.name}! Retire na escola.` };
+}
+
+export async function fulfillRedemptionAction(formData: FormData) {
+  const user = await requireSession(["admin", "director", "teacher"]);
+  const redemptionId = String(formData.get("redemptionId") ?? "");
+  if (!redemptionId) return { error: "Resgate inválido." };
+
+  const redemption = await prisma.rewardRedemption.findFirst({
+    where: {
+      id: redemptionId,
+      student: { user: { schoolId: user.schoolId } },
+    },
+    include: { reward: true, student: true },
+  });
+  if (!redemption) return { error: "Resgate não encontrado." };
+  if (redemption.status === "fulfilled") {
+    return { error: "Este resgate já foi entregue." };
+  }
+
+  await prisma.rewardRedemption.update({
+    where: { id: redemptionId },
+    data: { status: "fulfilled", fulfilledAt: new Date() },
+  });
+
+  await notifyStudent(
+    redemption.studentId,
+    "Prêmio entregue!",
+    `Você recebeu: ${redemption.reward.name}. Aproveite!`,
+    "/dashboard/loja"
+  );
+  await notifyStudentParents(
+    redemption.studentId,
+    "Prêmio entregue",
+    `${redemption.reward.name} foi entregue na escola.`,
+    `/dashboard/responsavel/filho/${redemption.studentId}`
+  );
+
+  revalidateLoja();
+  return { success: true };
 }
 
 export async function getRewardsForSchool(schoolId: string | null) {

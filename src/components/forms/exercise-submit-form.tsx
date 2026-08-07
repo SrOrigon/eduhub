@@ -46,7 +46,16 @@ export function ExerciseSubmitForm({
   const [step, setStep] = useState(0);
 
   const [state, formAction, pending] = useActionState(
-    async (_prev: { error?: string; success?: boolean } | null, formData: FormData) => {
+    async (
+      _prev: {
+        error?: string;
+        success?: boolean;
+        autoGraded?: boolean;
+        score?: number | null;
+        maxScore?: number;
+      } | null,
+      formData: FormData
+    ) => {
       formData.set("exerciseId", exerciseId);
       formData.set("answersJson", JSON.stringify(answers));
       return (await submitExerciseAction(formData)) ?? null;
@@ -88,13 +97,16 @@ export function ExerciseSubmitForm({
   }
 
   if (state?.success) {
+    const auto = "autoGraded" in state && state.autoGraded;
     return (
       <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50 px-6 py-8 text-center" role="status">
         <p className={cn("font-bold text-emerald-800", kidFriendly && "text-xl")}>
-          Respostas enviadas com sucesso!
+          {auto ? "Corrigido na hora!" : "Respostas enviadas com sucesso!"}
         </p>
         <p className="mt-2 text-slate-700">
-          Seu professor vai corrigir em breve. Você receberá uma notificação quando a nota sair.
+          {auto && "score" in state && state.score != null && "maxScore" in state
+            ? `Sua nota: ${Number(state.score).toFixed(1)}/${Number(state.maxScore).toFixed(1)} pts. XP e moedas já foram creditados!`
+            : "Seu professor vai corrigir em breve. Você receberá uma notificação quando a nota sair."}
         </p>
       </div>
     );

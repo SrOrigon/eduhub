@@ -186,7 +186,8 @@ export function CreateExerciseForm({ classes }: { classes: ClassOption[] }) {
                 </div>
               </div>
               <p className="rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-900">
-                Os alunos ganham XP e moedas proporcionais à nota após sua correção.
+                Quiz só com múltipla escolha = correção automática e XP na hora.
+                Com respostas abertas, você corrige e os alunos ganham XP proporcional à nota.
               </p>
             </>
           )}

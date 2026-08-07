@@ -7,6 +7,7 @@ import { CreateRewardForm } from "@/components/forms/create-reward-form";
 import { PageHeader } from "@/components/layout/page-header";
 import { RedeemRewardButton } from "@/components/forms/redeem-reward-button";
 import { ToggleRewardButton } from "@/components/forms/toggle-reward-button";
+import { FulfillRedemptionButton } from "@/components/forms/fulfill-redemption-button";
 import { redirect } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import { isKidFriendlyRole } from "@/lib/constants";
@@ -16,6 +17,7 @@ export default async function LojaPage() {
   if (!user) redirect("/login");
 
   const isAdmin = user.role === "admin" || user.role === "director";
+  const isStaff = isAdmin || user.role === "teacher";
   const isStudent = user.role === "student";
   const kidFriendly = isKidFriendlyRole(user.role);
 
@@ -28,7 +30,7 @@ export default async function LojaPage() {
   const rewards = await getRewardsForSchool(user.schoolId);
   const redemptions = student
     ? await getStudentRedemptions(student.id)
-    : isAdmin
+    : isStaff
       ? await prisma.rewardRedemption.findMany({
           where: { student: { user: { schoolId: user.schoolId } } },
           include: {
@@ -36,9 +38,13 @@ export default async function LojaPage() {
             reward: true,
           },
           orderBy: { redeemedAt: "desc" },
-          take: 20,
+          take: 30,
         })
       : [];
+
+  const pendingCount = isStaff
+    ? redemptions.filter((r) => r.status === "pending").length
+    : 0;
 
   return (
     <div className="space-y-8">
@@ -47,7 +53,9 @@ export default async function LojaPage() {
         description={
           isStudent
             ? `Você tem ${student?.coins ?? 0} moedas. Escolha um prêmio!`
-            : "Gerencie prêmios e acompanhe resgates"
+            : pendingCount > 0
+              ? `${pendingCount} resgate(s) aguardando entrega`
+              : "Gerencie prêmios e acompanhe resgates"
         }
       >
         {isAdmin && <CreateRewardForm />}
@@ -144,17 +152,30 @@ export default async function LojaPage() {
               {redemptions.map((r) => (
                 <li
                   key={r.id}
-                  className={`flex items-center justify-between gap-3 border-b border-slate-100 py-3 ${kidFriendly ? "text-base" : "text-sm"}`}
+                  className={`flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 py-3 ${kidFriendly ? "text-base" : "text-sm"}`}
                 >
                   <span>
                     {!isStudent && "student" in r && (
-                      <strong>{(r as { student: { user: { fullName: string } } }).student.user.fullName}: </strong>
+                      <strong>
+                        {(r as { student: { user: { fullName: string } } }).student.user.fullName}:{" "}
+                      </strong>
                     )}
                     {r.reward.name}
+                    <Badge
+                      variant={r.status === "fulfilled" ? "success" : "warning"}
+                      className="ml-2"
+                    >
+                      {r.status === "fulfilled" ? "Entregue" : "Aguardando entrega"}
+                    </Badge>
                   </span>
-                  <span className="text-slate-600">
-                    -{r.coinCost} moedas · {formatDate(r.redeemedAt)}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-slate-600">
+                      -{r.coinCost} moedas · {formatDate(r.redeemedAt)}
+                    </span>
+                    {isStaff && r.status === "pending" && (
+                      <FulfillRedemptionButton redemptionId={r.id} />
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>

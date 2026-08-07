@@ -4,13 +4,16 @@ import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { awardXp } from "@/lib/gamification";
-import { notifyStudent, notifyStudentParents } from "@/lib/notifications";
+import { notifyStudent, notifyStudentParents, notifyUser } from "@/lib/notifications";
 import { parseOptions, type ChoiceOption, type ExerciseKind, type QuestionType } from "@/lib/exercises";
 
 function revalidateExercises() {
-  ["/dashboard/exercicios", "/dashboard/aluno", "/dashboard/professor"].forEach((p) =>
-    revalidatePath(p)
-  );
+  [
+    "/dashboard/exercicios",
+    "/dashboard/aluno",
+    "/dashboard/professor",
+    "/dashboard/responsavel",
+  ].forEach((p) => revalidatePath(p));
 }
 
 type QuestionInput = {
@@ -102,6 +105,12 @@ export async function createExerciseAction(formData: FormData) {
         kind === "exam" ? "Nova prova disponível" : "Novo exercício disponível",
         `${title} · ${exercise.classGroup?.name ?? "Turma"}`,
         `/dashboard/exercicios/${exercise.id}`
+      );
+      await notifyStudentParents(
+        s.id,
+        kind === "exam" ? "Nova prova do filho(a)" : "Novo exercício do filho(a)",
+        `${title} · ${exercise.classGroup?.name ?? "Turma"}`,
+        `/dashboard/responsavel/filho/${s.id}`
       );
     }
 
@@ -212,6 +221,9 @@ export async function submitExerciseAction(formData: FormData) {
     return { error: "Respostas inválidas." };
   }
 
+  const allChoice = exercise.questions.every((q) => q.type === "choice");
+  const maxScore = exercise.questions.reduce((s, q) => s + q.points, 0);
+
   const answerRows = exercise.questions.map((q) => {
     const a = answers[q.id] ?? {};
     let isCorrect: boolean | null = null;
@@ -233,34 +245,131 @@ export async function submitExerciseAction(formData: FormData) {
     };
   });
 
+  const autoScore = allChoice
+    ? answerRows.reduce((s, r) => s + (r.pointsAwarded ?? 0), 0)
+    : null;
+
+  let submissionId = existing?.id ?? "";
+
   await prisma.$transaction(async (tx) => {
     if (existing) {
       await tx.exerciseAnswer.deleteMany({ where: { submissionId: existing.id } });
       await tx.exerciseSubmission.update({
         where: { id: existing.id },
-        data: { status: "submitted", submittedAt: new Date(), score: null, gradedAt: null, gradedById: null },
+        data: allChoice
+          ? {
+              status: "graded",
+              submittedAt: new Date(),
+              score: autoScore,
+              maxScore,
+              gradedAt: new Date(),
+              gradedById: exercise.teacherId,
+              feedback: "Correção automática (múltipla escolha).",
+            }
+          : {
+              status: "submitted",
+              submittedAt: new Date(),
+              score: null,
+              gradedAt: null,
+              gradedById: null,
+              feedback: null,
+            },
       });
       await tx.exerciseAnswer.createMany({
         data: answerRows.map((r) => ({ submissionId: existing.id, ...r })),
       });
+      submissionId = existing.id;
     } else {
       const sub = await tx.exerciseSubmission.create({
         data: {
           exerciseId,
           studentId: student.id,
-          status: "submitted",
-          maxScore: exercise.questions.reduce((s, q) => s + q.points, 0),
+          status: allChoice ? "graded" : "submitted",
+          maxScore,
+          score: autoScore,
+          gradedAt: allChoice ? new Date() : null,
+          gradedById: allChoice ? exercise.teacherId : null,
+          feedback: allChoice ? "Correção automática (múltipla escolha)." : null,
         },
       });
       await tx.exerciseAnswer.createMany({
         data: answerRows.map((r) => ({ submissionId: sub.id, ...r })),
       });
+      submissionId = sub.id;
+    }
+
+    if (allChoice && autoScore != null) {
+      await tx.grade.create({
+        data: {
+          studentId: student.id,
+          subject: exercise.kind === "exam" ? "Prova" : "Exercício",
+          value: maxScore > 0 ? (autoScore / maxScore) * 10 : 0,
+          maxValue: 10,
+          period: exercise.title.slice(0, 40),
+          teacherId: exercise.teacherId,
+        },
+      });
     }
   });
 
+  const studentName = user.fullName;
+
+  if (allChoice && autoScore != null) {
+    const ratio = maxScore > 0 ? autoScore / maxScore : 0;
+    const xp = Math.round(exercise.xpReward * ratio);
+    const coins = Math.round(exercise.coinReward * ratio);
+    if (xp > 0 || coins > 0) {
+      await awardXp(
+        student.id,
+        xp,
+        `${exercise.kind === "exam" ? "Prova" : "Exercício"}: ${exercise.title} (${autoScore.toFixed(1)}/${maxScore})`,
+        "manual",
+        coins
+      );
+    }
+
+    await notifyStudent(
+      student.id,
+      "Resultado imediato!",
+      `${exercise.title}: ${autoScore.toFixed(1)}/${maxScore} pts — XP e moedas creditados.`,
+      `/dashboard/exercicios/${exerciseId}`
+    );
+    await notifyStudentParents(
+      student.id,
+      "Atividade corrigida automaticamente",
+      `${studentName} · ${exercise.title}: ${autoScore.toFixed(1)}/${maxScore} pts`,
+      `/dashboard/responsavel/filho/${student.id}`
+    );
+    await notifyUser(
+      exercise.teacherId,
+      "Entrega auto-corrigida",
+      `${studentName} concluiu "${exercise.title}" (${autoScore.toFixed(1)}/${maxScore})`,
+      `/dashboard/exercicios/${exerciseId}`
+    );
+  } else {
+    await notifyUser(
+      exercise.teacherId,
+      "Nova entrega para corrigir",
+      `${studentName} enviou "${exercise.title}"`,
+      `/dashboard/exercicios/${exerciseId}`
+    );
+    await notifyStudentParents(
+      student.id,
+      "Atividade enviada",
+      `${studentName} entregou: ${exercise.title}`,
+      `/dashboard/responsavel/filho/${student.id}`
+    );
+  }
+
   revalidateExercises();
   revalidatePath(`/dashboard/exercicios/${exerciseId}`);
-  return { success: true };
+  return {
+    success: true,
+    autoGraded: allChoice,
+    score: autoScore,
+    maxScore,
+    submissionId,
+  };
 }
 
 export async function gradeSubmissionAction(formData: FormData) {

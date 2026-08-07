@@ -13,6 +13,9 @@ import {
   ExerciseRewardPills,
   getStudentExerciseStatus,
 } from "@/components/exercises/exercise-status-badge";
+import { RequestMissionButton } from "@/components/forms/request-mission-button";
+import { TodayChecklist, type TodayItem } from "@/components/student/today-checklist";
+import { formatDate } from "@/lib/utils";
 import { redirect } from "next/navigation";
 
 export default async function AlunoPortalPage() {
@@ -39,22 +42,61 @@ export default async function AlunoPortalPage() {
     );
   }
 
-  const [ranking, missions, exercises] = await Promise.all([
+  const [schoolRanking, classRanking, missions, exercises] = await Promise.all([
     getRanking(user.schoolId),
+    getRanking(user.schoolId, student.classId),
     getMissionsForStudent(user.schoolId, student.classId),
     getExercisesForUser(user),
   ]);
 
-  const pendingExercises = exercises
-    .map((ex) => {
-      const sub = ex.submissions[0];
-      const status = getStudentExerciseStatus(sub, ex.dueDate, !!sub);
-      return { ...ex, sub, status };
-    })
-    .filter((ex) => ex.status === "pending")
-    .slice(0, 3);
+  const enrichedExercises = exercises.map((ex) => {
+    const sub = ex.submissions[0];
+    const status = getStudentExerciseStatus(sub, ex.dueDate, !!sub);
+    return { ...ex, sub, status };
+  });
 
-  const myRank = ranking.find((r) => r.id === student.id);
+  const pendingExercises = enrichedExercises.filter((ex) => ex.status === "pending").slice(0, 3);
+  const waitingGrade = enrichedExercises.filter((ex) => ex.status === "submitted").length;
+
+  const openMissions = missions.filter(
+    (mission) =>
+      !student.studentMissions.some((sm) => sm.missionId === mission.id && sm.completedAt)
+  );
+
+  const todayItems: TodayItem[] = [
+    ...pendingExercises.map((ex) => ({
+      id: `ex-${ex.id}`,
+      title: ex.title,
+      subtitle: ex.dueDate ? `Prazo: ${formatDate(ex.dueDate)}` : "Exercício / prova",
+      href: `/dashboard/exercicios/${ex.id}`,
+      done: false,
+      cta: "Responder",
+      badge: `+${ex.xpReward} XP`,
+    })),
+    ...openMissions.slice(0, 3).map((m) => ({
+      id: `mission-${m.id}`,
+      title: m.title,
+      subtitle: "Missão da turma",
+      href: "#missoes",
+      done: false,
+      cta: "Ver missão",
+      badge: `+${m.xpReward} XP`,
+    })),
+  ];
+
+  if (todayItems.length === 0 && waitingGrade > 0) {
+    todayItems.push({
+      id: "waiting",
+      title: `${waitingGrade} atividade(s) aguardando correção`,
+      subtitle: "Você já enviou — agora é com o professor",
+      href: "/dashboard/exercicios",
+      done: true,
+      cta: "Ver",
+    });
+  }
+
+  const mySchoolRank = schoolRanking.find((r) => r.id === student.id);
+  const myClassRank = classRanking.find((r) => r.id === student.id);
   const avgGrade =
     student.grades.length > 0
       ? student.grades.reduce((s, g) => s + g.value, 0) / student.grades.length
@@ -84,6 +126,8 @@ export default async function AlunoPortalPage() {
           </Link>
         </div>
       </PageHeader>
+
+      <TodayChecklist items={todayItems} firstName={firstName} />
 
       <section aria-labelledby="stats-heading">
         <h2 id="stats-heading" className="sr-only">
@@ -139,11 +183,14 @@ export default async function AlunoPortalPage() {
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base text-slate-700">
                 <Trophy className="h-5 w-5 text-emerald-600" aria-hidden="true" />
-                Ranking
+                Ranking da turma
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="kid-stat text-emerald-700">#{myRank?.rank ?? "-"}</p>
+              <p className="kid-stat text-emerald-700">#{myClassRank?.rank ?? "-"}</p>
+              <p className="mt-1 text-sm text-slate-500">
+                Escola: #{mySchoolRank?.rank ?? "-"}
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -191,7 +238,7 @@ export default async function AlunoPortalPage() {
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="kid-card">
+        <Card className="kid-card" id="missoes">
           <CardHeader>
             <CardTitle className="text-xl">Minhas missões</CardTitle>
           </CardHeader>
@@ -200,9 +247,9 @@ export default async function AlunoPortalPage() {
               <p className="text-lg text-slate-600">Nenhuma missão no momento. Volte em breve!</p>
             )}
             {missions.map((mission) => {
-              const done = student.studentMissions.some(
-                (sm) => sm.missionId === mission.id && sm.completedAt
-              );
+              const sm = student.studentMissions.find((m) => m.missionId === mission.id);
+              const done = !!sm?.completedAt;
+              const requested = !!sm && !sm.completedAt;
               return (
                 <article key={mission.id} className="rounded-2xl border-2 border-slate-200 p-4">
                   <h3 className="text-lg font-bold text-slate-900">{mission.title}</h3>
@@ -217,9 +264,10 @@ export default async function AlunoPortalPage() {
                         Missão concluída!
                       </p>
                     ) : (
-                      <p className="text-base text-slate-600">
-                        Faça a atividade e peça ao professor para marcar como concluída.
-                      </p>
+                      <RequestMissionButton
+                        missionId={mission.id}
+                        alreadyRequested={requested}
+                      />
                     )}
                   </div>
                 </article>
@@ -230,12 +278,39 @@ export default async function AlunoPortalPage() {
 
         <Card className="kid-card">
           <CardHeader>
-            <CardTitle className="text-xl">Suas conquistas</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <Trophy className="h-6 w-6 text-emerald-600" aria-hidden="true" />
+              Ranking da turma
+            </CardTitle>
           </CardHeader>
           <CardContent>
+            {classRanking.length === 0 ? (
+              <p className="text-lg text-slate-600">Ainda sem ranking nesta turma.</p>
+            ) : (
+              <ol className="space-y-2">
+                {classRanking.slice(0, 8).map((item) => {
+                  const isMe = item.id === student.id;
+                  return (
+                    <li
+                      key={item.id}
+                      className={`flex items-center justify-between rounded-xl px-3 py-2 text-base ${
+                        isMe ? "bg-indigo-100 font-bold text-indigo-900" : "bg-slate-50"
+                      }`}
+                    >
+                      <span>
+                        #{item.rank} {isMe ? "Você" : item.name.split(" ")[0]}
+                      </span>
+                      <span className="text-indigo-600">{item.xp} XP</span>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+
+            <h3 className="mb-3 mt-6 text-lg font-bold">Suas conquistas</h3>
             <div className="flex flex-wrap gap-2">
               {student.studentBadges.length === 0 && (
-                <p className="text-lg text-slate-600">
+                <p className="text-base text-slate-600">
                   Complete missões e mantenha boas notas para ganhar badges!
                 </p>
               )}
@@ -245,6 +320,7 @@ export default async function AlunoPortalPage() {
                 </Badge>
               ))}
             </div>
+
             <h3 className="mb-3 mt-6 text-lg font-bold">Atividade recente</h3>
             <ul className="space-y-3 text-base">
               {student.xpTransactions.length === 0 && (

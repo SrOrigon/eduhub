@@ -82,6 +82,27 @@ export async function getExercisesForUser(user: SessionUser) {
   });
 }
 
+export async function getExercisesForStudentId(studentId: string, schoolId: string | null) {
+  if (!schoolId) return [];
+  const student = await prisma.student.findUnique({ where: { id: studentId } });
+  if (!student?.classId) return [];
+
+  return prisma.exercise.findMany({
+    where: {
+      schoolId,
+      isActive: true,
+      classId: student.classId,
+    },
+    include: {
+      classGroup: { select: { name: true } },
+      teacher: { select: { fullName: true } },
+      questions: { select: { id: true } },
+      submissions: { where: { studentId: student.id } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
 export async function getExerciseById(id: string, user: SessionUser) {
   const exercise = await prisma.exercise.findFirst({
     where: { id, schoolId: user.schoolId ?? undefined },
@@ -112,6 +133,14 @@ export async function getExerciseById(id: string, user: SessionUser) {
         : null;
       if (!teaches) return null;
     }
+  } else if (user.role === "parent") {
+    const link = await prisma.parentStudent.findFirst({
+      where: {
+        parentId: user.id,
+        student: { classId: exercise.classId ?? undefined },
+      },
+    });
+    if (!link) return null;
   }
 
   return exercise;
